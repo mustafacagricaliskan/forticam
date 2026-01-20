@@ -2,14 +2,10 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-## Active Tracks
-
-- [~] **Track: Improve the login screen UI by enhancing textbox styles, button aesthetics, and overall layout based on visual feedback.**
-  *Link: [./tracks/login_ui_polish_20260120/](./tracks/login_ui_polish_20260120/)*
-
----
-
 ## Archived Tracks
+
+- [x] **Track: Improve the login screen UI by enhancing textbox styles, button aesthetics, and overall layout based on visual feedback.**
+  *Link: [./archive/login_ui_polish_20260120/](./archive/login_ui_polish_20260120/)*
 
 - [x] **Track: Add a global setting to allow admins to choose between DB Update and Direct Proxy toggle methods for all interfaces.**
   *Link: [./archive/global_toggle_setting_20260120/](./archive/global_toggle_setting_20260120/)*
