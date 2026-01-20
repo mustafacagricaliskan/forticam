@@ -334,59 +334,68 @@ class UI:
 
                 .stTextInput > div > div > input {
                     background-color: rgba(255, 255, 255, 0.95) !important;
-                    border: 2px solid #cbd5e1 !important;
+                    border: 1px solid #cbd5e1 !important;
                     color: #1e293b !important;
-                    border-radius: 26px !important;
-                    padding-left: 50px !important;
-                    height: 54px !important;
+                    border-radius: 12px !important;
+                    padding-left: 45px !important;
+                    height: 50px !important;
                     line-height: normal !important;
-                    font-size: 16px !important;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: none !important;
-                    box-sizing: border-box !important;
+                    font-size: 15px !important;
+                    transition: all 0.2s ease-in-out;
+                    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important;
                     width: 100%% !important;
-                    max-width: 100%% !important;
                 }
                 
                 .stTextInput > div > div > input:focus {
-                    border-color: #cbd5e1 !important;
+                    border-color: #4f46e5 !important;
                     background-color: #ffffff !important;
-                    box-shadow: none !important;
+                    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1) !important;
                     outline: none !important;
+                }
+
+                /* Label Styling */
+                .stTextInput label {
+                    display: block !important;
+                    color: #475569 !important;
+                    font-size: 0.75rem !important;
+                    font-weight: 700 !important;
+                    text-transform: uppercase !important;
+                    letter-spacing: 0.05em !important;
+                    margin-bottom: 0.5rem !important;
+                    margin-left: 4px !important;
                 }
 
                 /* Input Icons */
                 input[aria-label="USERNAME"] {
                     background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%%2364748b'%%3E%%3Cpath d='M224 256c70.7 0 128-57.3 128-128S294.7 0 224 0 96 57.3 96 128s57.3 128 128 128zm89.6 32h-16.7c-22.2 10.2-46.9 16-72.9 16s-50.6-5.8-72.9-16h-16.7C60.2 288 0 348.2 0 422.4V464c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-41.6c0-74.2-60.2-134.4-134.4-134.4z"/%%3E%%3C/svg%%3E");
                     background-repeat: no-repeat;
-                    background-position: 18px center;
-                    background-size: 18px;
+                    background-position: 15px center;
+                    background-size: 16px;
                 }
                 input[aria-label="PASSWORD"] {
                     background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%%2364748b'%%3E%%3Cpath d='M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"/%%3E%%3C/svg%%3E"); 
                     background-repeat: no-repeat;
-                    background-position: 18px center;
-                    background-size: 16px;
+                    background-position: 15px center;
+                    background-size: 14px;
                 }
-
-                .stTextInput label { display: none !important; }
 
                 .stButton > button {
                     width: 100%% !important;
-                    background: linear-gradient(135deg, #3b82f6 0%%, #2563eb 100%%) !important;
+                    background: linear-gradient(135deg, #4f46e5 0%%, #3b82f6 100%%) !important;
                     color: white !important;
                     border-radius: 12px !important;
-                    height: 50px !important;
-                    font-weight: 600 !important;
-                    font-size: 1.1rem !important;
+                    height: 54px !important;
+                    font-weight: 700 !important;
+                    font-size: 1rem !important;
                     border: none !important;
-                    margin-top: 10px !important;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+                    margin-top: 20px !important;
+                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
                     transition: all 0.3s ease;
                 }
                 .stButton > button:hover {
                     transform: translateY(-2px);
-                    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4) !important;
+                    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4) !important;
+                    filter: brightness(1.1);
                 }
                 
                 .stAlert {
@@ -414,8 +423,8 @@ class UI:
 
         with st.form("login_form", border=False):
             # Using specific labels to match CSS
-            username = st.text_input("USERNAME", placeholder="Kullanıcı Adı")
-            password = st.text_input("PASSWORD", type="password", placeholder="Şifre")
+            username = st.text_input("Kullanıcı Adı", placeholder="Kullanıcı Adınızı girin")
+            password = st.text_input("Şifre", type="password", placeholder="Şifrenizi girin")
             submitted = st.form_submit_button("Giriş Yap")
 
             if submitted:
