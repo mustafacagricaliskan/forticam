@@ -1,0 +1,8 @@
+{
+  "track_id": "lan2_verification_fix_20260120",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-20T15:29:00Z",
+  "updated_at": "2026-01-20T15:29:00Z",
+  "description": "Fix verification failure when toggling lan2 interface status despite successful task execution on FortiManager."
+}
