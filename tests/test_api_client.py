@@ -96,3 +96,32 @@ def test_toggle_interface(mock_api):
     
     assert success == True
     assert "Task: 999" in msg
+
+def test_get_interfaces_with_adom(mock_api):
+    api, mock_post = mock_api
+    
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "result": [
+            {
+                "data": [
+                    {"name": "lan2", "status": 1}
+                ],
+                "status": {"code": 0}
+            }
+        ]
+    }
+    mock_post.return_value = mock_response
+    
+    # Call with ADOM
+    ifaces = api.get_interfaces("FGT-1", vdom="root", adom="MyAdom")
+    
+    assert len(ifaces) == 1
+    assert ifaces[0]['name'] == "lan2"
+    
+    # Verify that the correct URL with ADOM was called
+    # The first call should be to the ADOM path
+    args, kwargs = mock_post.call_args
+    request_json = kwargs['json']
+    assert "/pm/config/adom/MyAdom/device/FGT-1/vdom/root/system/interface" in request_json['params'][0]['url']

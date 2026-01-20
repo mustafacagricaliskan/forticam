@@ -158,28 +158,36 @@ class FortiManagerAPI:
             
         return vdoms
 
-    def get_interfaces(self, device_name, vdom="root"):
+    def get_interfaces(self, device_name, vdom="root", adom="root"):
         """
         Belirli bir cihaz ve VDOM için interfaceleri çeker.
-        Path: /pm/config/device/{device}/vdom/{vdom}/system/interface
+        Path: /pm/config/adom/{adom}/device/{device}/vdom/{vdom}/system/interface
         """
         if not self.session_id and not self.api_token: return []
 
-        # Global interface'ler (VDOM mode kapalıysa) için path farklı olabilir
-        # Ancak FMG genelde her şeyi 'root' vdom altında tutar.
-        url = f"/pm/config/device/{device_name}/vdom/{vdom}/system/interface"
+        if not adom: adom = "root"
+
+        # 1. ADOM Path
+        url_adom = f"/pm/config/adom/{adom}/device/{device_name}/vdom/{vdom}/system/interface"
+        # 2. Legacy Path (Fallback)
+        url_legacy = f"/pm/config/device/{device_name}/vdom/{vdom}/system/interface"
         
-        params = [
-            {
-                "url": url,
-                "fields": ["name", "status", "type", "ip", "vdom", "link-status", "admin-status"]
-            }
-        ]
-        response = self._post("get", params)
+        candidate_urls = [url_adom, url_legacy]
         
-        if response and 'result' in response and response['result'][0]['status']['code'] == 0:
-            data = response['result'][0]['data']
-            return data
+        for url in candidate_urls:
+            params = [
+                {
+                    "url": url,
+                    "fields": ["name", "status", "type", "ip", "vdom", "link-status", "admin-status"]
+                }
+            ]
+            response = self._post("get", params)
+            
+            if response and 'result' in response and response['result'][0]['status']['code'] == 0:
+                data = response['result'][0]['data']
+                return data
+        
+        logger.warning(f"get_interfaces failed for {device_name} (VDOM:{vdom}, ADOM:{adom}). Checked paths: {candidate_urls}")
         return []
 
     def check_task_status(self, task_id):

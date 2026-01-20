@@ -329,7 +329,7 @@ def render_dashboard():
                             if "Task:" in msg:
                                 # Task ID'yi al ve dogrulama bilgilerini gonder
                                 tid = msg.split("Task:")[1].strip().replace(")", "")
-                                track_task(api, tid, device_name=sel_dev, vdom=sel_vdom, interface_name=iface['name'], target_status=target)
+                                track_task(api, tid, device_name=sel_dev, vdom=sel_vdom, interface_name=iface['name'], target_status=target, adom=target_adom)
                             else:
                                 st.toast("Başarılı", icon="✅")
                                 time.sleep(1); st.rerun()
@@ -337,7 +337,7 @@ def render_dashboard():
                             st.error(f"İşlem Başarısız! \nDetay: {msg}")
                 
 
-def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, target_status=None):
+def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, target_status=None, adom="root"):
     p_bar = st.progress(0, "Başlatılıyor...")
     status_text = st.empty()
     
@@ -375,7 +375,8 @@ def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, t
                 if device_name and interface_name:
                     time.sleep(3) # FMG sync icin bekleme
                     try:
-                        fresh_ifaces = api.get_interfaces(device_name, vdom=vdom)
+                        # ADOM destegi eklendi
+                        fresh_ifaces = api.get_interfaces(device_name, vdom=vdom, adom=adom)
                         target_iface = next((i for i in fresh_ifaces if i['name'] == interface_name), None)
                         
                         if target_iface:
