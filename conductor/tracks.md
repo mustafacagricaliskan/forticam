@@ -2,6 +2,13 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
+## Active Tracks
+
+- [~] **Track: Refactor configuration JSON structure to group FortiManager settings under 'fmg_settings' object for better organization.**
+  *Link: [./tracks/refactor_config_structure_20260120/](./tracks/refactor_config_structure_20260120/)*
+
+---
+
 ## Archived Tracks
 
 - [x] **Track: Improve the login screen UI by enhancing textbox styles, button aesthetics, and overall layout based on visual feedback.**
