@@ -38,11 +38,21 @@ class ConfigService:
             except Exception as e:
                 logger.error(f"Config Load Error: {e}")
         
-        # --- Environment Variables & Defaults ---
+        # --- MIGRATION: FMG Settings Grouping ---
+        if "fmg_settings" not in config:
+            config["fmg_settings"] = {
+                "ip": config.pop("fmg_ip", ""),
+                "token": config.pop("api_token", "")
+            }
+            # Kaydetmeye gerek yok, save_config cagirildiginda veya bellekten kullanildiginda duzelir.
+            # Ancak kalicilik icin hemen kaydetmek daha iyi olabilir ama burada IO yapmayalim.
         
-        # 1. FMG Ayarlari
-        config["fmg_ip"] = ConfigService.get_env_or_config(config, "fmg_ip", "FMG_IP", "")
-        config["api_token"] = ConfigService.get_env_or_config(config, "api_token", "FMG_TOKEN", "")
+        # --- Environment Variables & Defaults ---
+        fmg = config["fmg_settings"]
+        
+        # 1. FMG Ayarlari (Yeni Yapi)
+        fmg["ip"] = ConfigService.get_env_or_config(fmg, "ip", "FMG_IP", "")
+        fmg["token"] = ConfigService.get_env_or_config(fmg, "token", "FMG_TOKEN", "")
             
         # 2. Connectivity Host
         config["connectivity_check_host"] = ConfigService.get_env_or_config(config, "connectivity_check_host", "CONNECTIVITY_HOST", "mfa.gov.tr")

@@ -34,9 +34,9 @@ def get_cached_vdoms(_api, device_name):
     if not _api: return ["root"]
     return _api.get_vdoms(device_name)
 
-@st.cache_data(ttl=10, show_spinner=False)
+@st.cache_data(ttl=1, show_spinner=False)
 def get_cached_interfaces(_api, device_name, vdom, adom="root"):
-    """Caches interface list for 10 seconds. Tries Real-time first."""
+    """Caches interface list for 1 second. Tries Real-time first."""
     if not _api: return []
     
     # 1. Try Real-time (Direct from Device via Proxy)
@@ -85,8 +85,10 @@ if 'saved_config' not in st.session_state:
 # --- PERFORM STARTUP HEALTH CHECKS ---
 if st.session_state.health_checks["fmg"]["status"] == "pending":
     cfg = st.session_state.saved_config
-    ip = cfg.get("fmg_ip")
-    token = cfg.get("api_token")
+    fmg_s = cfg.get("fmg_settings", {})
+    ip = fmg_s.get("ip")
+    token = fmg_s.get("token")
+    
     if ip and token:
         try:
             success, msg = SystemService.check_fmg_connectivity(ip, token)
@@ -107,8 +109,10 @@ if st.session_state.health_checks["ldap"]["status"] == "pending":
 # --- AUTO CONNECT ---
 if not st.session_state.fmg_connected:
     cfg = st.session_state.saved_config
-    ip = cfg.get("fmg_ip")
-    token = cfg.get("api_token")
+    fmg_s = cfg.get("fmg_settings", {})
+    ip = fmg_s.get("ip")
+    token = fmg_s.get("token")
+    
     if ip and token:
         try:
             # Hizli baslangic icin kisa timeout
@@ -171,8 +175,9 @@ def render_dashboard():
         # Dashboard acildiginda baglanti yoksa, tekrar config okuyup baglanmayi dene.
         try:
             cfg = ConfigService.load_config()
-            r_ip = cfg.get("fmg_ip")
-            r_token = cfg.get("api_token")
+            fmg_s = cfg.get("fmg_settings", {})
+            r_ip = fmg_s.get("ip")
+            r_token = fmg_s.get("token")
             
             if r_ip and r_token:
                 # Baglanti denemesi (Sessiz modda)
@@ -193,8 +198,9 @@ def render_dashboard():
         # DEBUG BILGISI (Sorun tespiti icin)
         with st.expander("🛠️ Bağlantı Sorun Giderme"):
             cfg = ConfigService.load_config()
-            debug_ip = cfg.get("fmg_ip")
-            debug_token = cfg.get("api_token")
+            fmg_s = cfg.get("fmg_settings", {})
+            debug_ip = fmg_s.get("ip")
+            debug_token = fmg_s.get("token")
             
             st.write(f"**Yüklü IP:** {debug_ip if debug_ip else 'YOK ❌'}")
             st.write(f"**Yüklü Token:** {'***' + debug_token[-4:] if debug_token and len(debug_token)>4 else 'YOK ❌'}")
@@ -381,7 +387,7 @@ def render_dashboard():
                         user_name = AuthService.get_current_user().username
                         LogService.log_action(user_name, f"Port {target.upper()}", f"{sel_dev}[{sel_vdom}]", msg)
                         
-                        # Cache temizle
+                        # Cache temizle (Initial)
                         get_cached_interfaces.clear()
                         
                         if success:
@@ -392,10 +398,16 @@ def render_dashboard():
                             elif use_script_method and ("Direct Update Success" in msg or "Proxy" in msg):
                                 # Proxy/Direct modu icin ozel mesaj
                                 st.success("⚡ Doğrudan komut cihaz üzerine başarıyla gönderildi.")
-                                time.sleep(2)
+                                
+                                # AGGRESSIVE CACHE CLEAR
+                                get_cached_interfaces.clear()
+                                # st.cache_data.clear() # Tum app cache'ini silmek performansi etkiler ama gerekirse acilabilir
+                                
+                                time.sleep(4)
                                 st.rerun()
                             else:
                                 st.toast("Başarılı", icon="✅")
+                                get_cached_interfaces.clear()
                                 time.sleep(1); st.rerun()
                         else:
                             st.error(f"İşlem Başarısız! \nDetay: {msg}")
@@ -492,13 +504,22 @@ def render_fmg_connection():
     else:
         st.info("FortiManager'a bağlanmak için API Token girin.")
         with st.form("fmg_conn"):
-            ip = st.text_input("IP Adresi", value=cfg.get("fmg_ip", ""), disabled=not can_edit)
-            token = st.text_input("API Token", type="password", value=cfg.get("api_token", ""), disabled=not can_edit)
+            # Safe access to nested settings
+            fmg_s = cfg.get("fmg_settings", {})
+            ip = st.text_input("IP Adresi", value=fmg_s.get("ip", ""), disabled=not can_edit)
+            token = st.text_input("API Token", type="password", value=fmg_s.get("token", ""), disabled=not can_edit)
+            
             if st.form_submit_button("Bağlan", type="primary", disabled=not can_edit):
                 api = FortiManagerAPI(ip, None, None, token)
                 if api.login():
                     st.session_state.api, st.session_state.fmg_connected, st.session_state.fmg_ip = api, True, ip
-                    ConfigService.save_config({**cfg, "fmg_ip": ip, "api_token": token})
+                    
+                    # Update config structure
+                    if "fmg_settings" not in cfg: cfg["fmg_settings"] = {}
+                    cfg["fmg_settings"]["ip"] = ip
+                    cfg["fmg_settings"]["token"] = token
+                    
+                    ConfigService.save_config(cfg)
                     st.rerun()
                 else:
                     st.error("Bağlantı başarısız.")
