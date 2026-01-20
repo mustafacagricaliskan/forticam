@@ -4,7 +4,9 @@ import ssl
 import logging
 import uuid
 import socket
-from ldap3 import Server, Connection, ALL, Tls
+import bcrypt
+from typing import Optional, List, Dict, Union, Any, Tuple
+from ldap3 import Server, Connection, SCHEMA, Tls
 from config_service import ConfigService
 
 # Logger Yapilandirmasi
@@ -17,13 +19,13 @@ SESSION_STORE = {}
 USER_SESSIONS = {}
 
 class User:
-    def __init__(self, username, role, user_groups=None):
+    def __init__(self, username: str, role: str, user_groups: Optional[List[str]] = None):
         self.username = username
         self.role = role
         self.user_groups = user_groups or [] # LDAP Gruplarini sakla
         self.login_time = datetime.datetime.now()
 
-    def has_access_to_port(self, device_name, port_name):
+    def has_access_to_port(self, device_name: str, port_name: str) -> bool:
         """
         Check access dynamically by reloading config.
         """
@@ -65,7 +67,23 @@ class User:
 class AuthService:
     
     @staticmethod
-    def create_session_token(user_obj):
+    def hash_password(password: str) -> str:
+        """Şifreyi bcrypt ile hashler."""
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
+
+    @staticmethod
+    def check_password(password: str, hashed: str) -> bool:
+        """Şifre doğruluğunu kontrol eder."""
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        except Exception:
+            # Geriye dönük uyumluluk: Eğer şifre hashli değilse düz metin kontrolü yap
+            return password == hashed
+
+    @staticmethod
+    def create_session_token(user_obj: User) -> str:
         """Kullanici icin unique token olusturur ve saklar."""
         token = str(uuid.uuid4())
         SESSION_STORE[token] = {
@@ -81,14 +99,14 @@ class AuthService:
         return token
 
     @staticmethod
-    def validate_session_token(token):
+    def validate_session_token(token: str) -> Optional[User]:
         """Token gecerli mi kontrol eder, gecerliyse user objesini doner."""
         if token in SESSION_STORE:
             return SESSION_STORE[token]["user"]
         return None
 
     @staticmethod
-    def logout_user(username):
+    def logout_user(username: str):
         """Kullanicinin TUM aktif oturumlarini (tokenlarini) sunucudan siler."""
         if username in USER_SESSIONS:
             tokens = USER_SESSIONS[username]
@@ -99,14 +117,13 @@ class AuthService:
             del USER_SESSIONS[username]
 
     @staticmethod
-    def remove_session_token(token):
+    def remove_session_token(token: str):
         """Token'i session store'dan siler (Server-side logout)."""
         if token in SESSION_STORE:
-            # Username indeksinden de silmek lazim ama karmasik olmasin diye logout_user kullaniyoruz.
             del SESSION_STORE[token]
 
     @staticmethod
-    def _get_profile_by_ldap_groups(user_groups, mappings):
+    def _get_profile_by_ldap_groups(user_groups: List[str], mappings: List[Dict]) -> Tuple[Optional[str], Optional[List[str]], Optional[Dict]]:
         """
         Matches user's LDAP groups against configured mappings.
         Returns: (profile_name, global_ports, device_ports) or (None, None, None)
@@ -114,19 +131,12 @@ class AuthService:
         if not user_groups or not mappings:
             return None, None, None
         
-        # Optimize: Pre-calculate lowercase user groups for faster matching
         user_groups_lower = {g.lower().strip() for g in user_groups}
         
         for mapping in mappings:
             map_dn = mapping.get('group_dn', '').lower().strip()
             if not map_dn: continue
             
-            # Check if mapped group exists in user's groups
-            # Using simple string check since map_dn might be a partial string or full DN
-            # If map_dn is a substring of any user group (flexible matching)
-            # OR exact match if desired. Here we keep the existing logic: if map_dn is in group string.
-            
-            # Optimization: Check if any user group contains the map_dn
             match = False
             for grp in user_groups_lower:
                 if map_dn == grp or map_dn in grp:
@@ -135,8 +145,6 @@ class AuthService:
             
             if match:
                 logger.info(f"LDAP Group Match: {map_dn} -> {mapping.get('profile')}")
-                
-                # Standardize config keys (backward compatibility)
                 g_ports = mapping.get('global_allowed_ports', mapping.get('allowed_ports', []))
                 d_ports = mapping.get('device_allowed_ports', {})
                 return mapping.get('profile'), g_ports, d_ports
@@ -144,17 +152,17 @@ class AuthService:
         return None, None, None
 
     @staticmethod
-    def login(username, password):
+    def login(username, password) -> Tuple[bool, str]:
         cfg = ConfigService.load_config()
         
         # 1. YEREL KULLANICI KONTROLU
         local_accounts = cfg.get("local_accounts", [])
         for acc in local_accounts:
-            if acc['user'] == username and acc.get('password') == password:
-                role = acc.get('profile', 'Standard_User')
-                # Yerel kullanicilar icin statik port listesine gerek yok, dinamik bakilacak
-                st.session_state['current_user'] = User(username, role)
-                return True, "Başarılı"
+            if acc['user'] == username:
+                if AuthService.check_password(password, acc.get('password')):
+                    role = acc.get('profile', 'Standard_User')
+                    st.session_state['current_user'] = User(username, role)
+                    return True, "Başarılı"
 
         # 2. LDAP CHECK
         ldap_cfg = cfg.get("ldap_settings", {})
@@ -164,7 +172,7 @@ class AuthService:
         return False, "Kullanıcı bulunamadı veya LDAP kapalı."
 
     @staticmethod
-    def _check_ldap_credentials(username, password, ldap_config, full_config):
+    def _check_ldap_credentials(username, password, ldap_config, full_config) -> Tuple[bool, str]:
         # Format Username for Bind
         if chr(92) not in username and "@" not in username: # chr(92) is backslash
             bind_user = f"MFA{chr(92)}{username}"
@@ -182,20 +190,18 @@ class AuthService:
         for server_host in servers_list:
             if not server_host: continue
             
-            # Clean Host URL
             server_host = str(server_host).strip()
             for prefix in ["ldaps://", "ldap://", "http://", "https://"]:
                 if server_host.startswith(prefix):
                     server_host = server_host.replace(prefix, "")
             
             try:
-                # Connection Setup
-                server = Server(server_host, port=port, use_ssl=use_ssl, tls=tls_config, get_info=ALL, connect_timeout=4)
+                # Connection Setup - get_info=SCHEMA is lighter than ALL
+                server = Server(server_host, port=port, use_ssl=use_ssl, tls=tls_config, get_info=SCHEMA, connect_timeout=4)
                 
                 # Determine possible Bind DNs
                 possible_dns = [bind_user]
                 if chr(92) not in username and "@" not in username and base_dn:
-                    # Construct UPN if base_dn provided (e.g., user@domain.com)
                     domain_parts = [p.split('=')[1] for p in base_dn.lower().split(',') if p.strip().startswith('dc=')]
                     if domain_parts:
                         possible_dns.append(f"{username}@{'.'.join(domain_parts)}")
@@ -216,8 +222,7 @@ class AuthService:
                     # Fetch User Groups
                     user_groups = []
                     short_user = username.split('\\')[-1].split('@')[0]
-                    # Robust search filter
-                    search_filter = f"(|(sAMAccountName={short_user})(uid={short_user})(cn={short_user}))"
+                    search_filter = f"( |(sAMAccountName={short_user})(uid={short_user})(cn={short_user}))"
                     
                     conn.search(base_dn, search_filter, attributes=['memberOf'])
                     if len(conn.entries) > 0:
@@ -229,16 +234,13 @@ class AuthService:
                     
                     # Map Groups to Profile
                     mappings = ldap_config.get("mappings", [])
-                    # Sadece profil ismini aliyoruz, portlari User class dinamik cekecek
                     profile_name, _, _ = AuthService._get_profile_by_ldap_groups(user_groups, mappings)
                     
                     if not profile_name:
                         group_list_str = ", ".join([g.split(',')[0].replace('CN=', '') for g in user_groups])
                         return False, f"Yetki grubu bulunamadı. AD Gruplarınız: {group_list_str if group_list_str else 'Yok'}"
                     
-                    # Kullaniciyi gruplariyla birlikte olustur
                     st.session_state['current_user'] = User(username, profile_name, user_groups=user_groups)
-                    conn.unbind()
                     return True, "Başarılı"
                     
             except Exception as e:
@@ -248,7 +250,7 @@ class AuthService:
         return False, "LDAP Bağlantı Hatası veya Kimlik Bilgileri Yanlış."
 
     @staticmethod
-    def is_ldap_reachable(server_host, port, timeout=2):
+    def is_ldap_reachable(server_host: str, port: int, timeout: int = 2) -> bool:
         try:
             server_host = str(server_host).strip()
             for prefix in ["ldaps://", "ldap://"]:
@@ -263,10 +265,9 @@ class AuthService:
             return False
 
     @staticmethod
-    def check_ldap_connectivity():
+    def check_ldap_connectivity() -> Tuple[bool, str]:
         """
         Checks LDAP connectivity based on configuration.
-        Returns: (bool, str) -> (Success, Message)
         """
         try:
             cfg = ConfigService.load_config()
@@ -287,7 +288,7 @@ class AuthService:
             return False, f"LDAP Check Error: {e}"
 
     @staticmethod
-    def test_connection(server_host, port, use_ssl, username, password):
+    def test_connection(server_host: str, port: int, use_ssl: bool, username: str, password: str) -> Tuple[bool, str]:
         try:
             server_host = str(server_host).strip()
             for prefix in ["ldaps://", "ldap://", "http://", "https://"]:
@@ -298,7 +299,7 @@ class AuthService:
                 username = f"MFA{chr(92)}{username}"
                 
             tls = Tls(validate=ssl.CERT_NONE) if use_ssl else None
-            server = Server(server_host, port=port, use_ssl=use_ssl, tls=tls, get_info=ALL, connect_timeout=5)
+            server = Server(server_host, port=port, use_ssl=use_ssl, tls=tls, get_info=SCHEMA, connect_timeout=5)
             conn = Connection(server, user=username, password=password, auto_bind=True)
             if conn.bound:
                 conn.unbind()
@@ -320,9 +321,9 @@ class AuthService:
             st.session_state.fmg_connected = False
 
     @staticmethod
-    def get_current_user():
+    def get_current_user() -> Optional[User]:
         return st.session_state.get('current_user')
 
     @staticmethod
-    def is_authenticated():
+    def is_authenticated() -> bool:
         return 'current_user' in st.session_state

@@ -1,6 +1,11 @@
 import json
 import os
 import streamlit as st
+import logging
+from typing import Any, Dict
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # Data directory for OpenShift persistence
 DATA_DIR = "data"
@@ -13,31 +18,36 @@ class ConfigService:
     """Uygulama ayarlarını yöneten servis."""
     
     @staticmethod
-    def load_config():
+    def get_env_or_config(config: Dict[str, Any], key: str, env_var: str, default: Any = None) -> Any:
+        """Önce Environment Variable, sonra config, en son default döner."""
+        val = os.getenv(env_var)
+        if val is not None:
+            # Boolean donusumu
+            if isinstance(default, bool):
+                return str(val).lower() == "true"
+            return val
+        return config.get(key, default)
+
+    @staticmethod
+    def load_config() -> Dict[str, Any]:
         config = {}
         if os.path.exists(CONFIG_FILE):
             try:
-                with open(CONFIG_FILE, 'r') as f:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Config Load Error: {e}")
         
-        # --- Environment Variables Override ---
-        # Eger Ortam Degiskeni varsa, config dosyasini ezer.
+        # --- Environment Variables & Defaults ---
         
         # 1. FMG Ayarlari
-        if os.getenv("FMG_IP"):
-            config["fmg_ip"] = os.getenv("FMG_IP")
-        if os.getenv("FMG_TOKEN"):
-            config["api_token"] = os.getenv("FMG_TOKEN")
+        config["fmg_ip"] = ConfigService.get_env_or_config(config, "fmg_ip", "FMG_IP", "")
+        config["api_token"] = ConfigService.get_env_or_config(config, "api_token", "FMG_TOKEN", "")
             
         # 2. Connectivity Host
-        if os.getenv("CONNECTIVITY_HOST"):
-            config["connectivity_check_host"] = os.getenv("CONNECTIVITY_HOST")
-        elif "connectivity_check_host" not in config:
-            config["connectivity_check_host"] = "mfa.gov.tr"
+        config["connectivity_check_host"] = ConfigService.get_env_or_config(config, "connectivity_check_host", "CONNECTIVITY_HOST", "mfa.gov.tr")
 
-        # 3. LDAP Ayarlari (Basit)
+        # 3. LDAP Ayarlari
         if "ldap_settings" not in config:
             config["ldap_settings"] = {
                 "enabled": False,
@@ -48,52 +58,31 @@ class ConfigService:
                 "mappings": []
             }
             
-        if os.getenv("LDAP_ENABLED"):
-            config["ldap_settings"]["enabled"] = str(os.getenv("LDAP_ENABLED")).lower() == "true"
-        if os.getenv("LDAP_SERVER"):
-            config["ldap_settings"]["servers"] = [os.getenv("LDAP_SERVER")]
-        if os.getenv("LDAP_BASE_DN"):
-            config["ldap_settings"]["base_dn"] = os.getenv("LDAP_BASE_DN")
+        ldap = config["ldap_settings"]
+        ldap["enabled"] = ConfigService.get_env_or_config(ldap, "enabled", "LDAP_ENABLED", ldap.get("enabled", False))
+        
+        env_ldap_server = os.getenv("LDAP_SERVER")
+        if env_ldap_server:
+            ldap["servers"] = [env_ldap_server]
+            
+        ldap["base_dn"] = ConfigService.get_env_or_config(ldap, "base_dn", "LDAP_BASE_DN", ldap.get("base_dn", ""))
 
-        # --- Default Values Init (Geri Kalanlar) ---
+        # 4. Admin Profiles (Defaults)
         if "admin_profiles" not in config:
             config["admin_profiles"] = [
-                {
-                    "name": "Super_User", 
-                    "permissions": {
-                        "Dashboard": 2, "System": 2, "Logs": 2
-                    }
-                },
-                {
-                    "name": "Standard_User", 
-                    "permissions": {
-                        "Dashboard": 2, "System": 0, "Logs": 1
-                    }
-                },
-                {
-                    "name": "Read_Only", 
-                    "permissions": {
-                        "Dashboard": 1, "System": 0, "Logs": 1
-                    }
-                }
+                {"name": "Super_User", "permissions": {"Dashboard": 2, "System": 2, "Logs": 2}},
+                {"name": "Standard_User", "permissions": {"Dashboard": 2, "System": 0, "Logs": 1}},
+                {"name": "Read_Only", "permissions": {"Dashboard": 1, "System": 0, "Logs": 1}}
             ]
             
+        # 5. Local Accounts (Defaults)
         if "local_accounts" not in config:
             config["local_accounts"] = [
                 {"user": "admin", "password": "admin", "profile": "Super_User"},
                 {"user": "operator", "password": "operator", "profile": "Standard_User"}
             ]
 
-        if "email_settings" not in config:
-            config["email_settings"] = {
-                "enabled": False,
-                "smtp_server": "",
-                "smtp_port": 587,
-                "sender_email": "",
-                "sender_password": "",
-                "receiver_emails": []
-            }
-        
+        # 6. SIEM Settings
         if "siem_settings" not in config:
             config["siem_settings"] = {
                 "enabled": False,
@@ -101,16 +90,27 @@ class ConfigService:
                 "port": 514,
                 "protocol": "UDP"
             }
-        
-        if "connectivity_check_host" not in config:
-            config["connectivity_check_host"] = "mfa.gov.tr"
             
         return config
 
     @staticmethod
-    def save_config(data: dict):
+    def save_config(data: Dict[str, Any]):
+        """Atomic write ile konfigürasyonu kaydeder."""
+        tmp_file = f"{CONFIG_FILE}.tmp"
         try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(data, f, indent=4)
+            with open(tmp_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno()) # Diske yazildigindan emin ol
+            
+            # Basariliysa asil dosyanin uzerine yaz
+            if os.path.exists(CONFIG_FILE):
+                os.replace(tmp_file, CONFIG_FILE)
+            else:
+                os.rename(tmp_file, CONFIG_FILE)
+                
         except Exception as e:
-            st.error(f"Config Save Error: {e}")
+            logger.error(f"Config Save Error: {e}")
+            if os.path.exists(tmp_file):
+                os.remove(tmp_file)
+            st.error(f"Ayarlar kaydedilemedi: {e}")

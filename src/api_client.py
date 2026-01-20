@@ -3,11 +3,16 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import json
 import logging
-from typing import Optional, List, Dict, Union, Any
+from typing import Optional, List, Dict, Union, Any, Tuple
 
 # Loglama ayarları
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class CONSTANTS:
+    DEVICE_FIELDS = ["name", "ip", "platform_str", "os_ver", "desc", "vdom", "conn_status", "adom"]
+    INTERFACE_FIELDS = ["name", "status", "type", "ip", "vdom", "link-status", "admin-status"]
+    VDOM_FIELDS = ["name", "status"]
 
 class FortiManagerAPI:
     def __init__(self, fmg_ip: str, username: Optional[str] = None, password: Optional[str] = None, 
@@ -72,8 +77,14 @@ class FortiManagerAPI:
             )
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.Timeout:
+            logger.error("API Bağlantı Zaman Aşımı (Timeout)")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.error("API Bağlantı Hatası (Connection Error) - Sunucuya ulaşılamıyor.")
+            return None
         except requests.exceptions.RequestException as e:
-            logger.error(f"API Bağlantı Hatası: {e}")
+            logger.error(f"API Genel İstek Hatası: {e}")
             return None
 
     def login(self) -> bool:
@@ -94,7 +105,7 @@ class FortiManagerAPI:
         logger.error("Login Failed: API Token is mandatory.")
         return False
 
-    def get_devices(self):
+    def get_devices(self) -> Optional[List[Dict]]:
         if not self.session_id and not self.api_token: return []
 
         # 1. Deneme: Genel cihaz listesi (Global - Tum ADOM'lar)
@@ -103,7 +114,7 @@ class FortiManagerAPI:
         params_global = [
             {
                 "url": "/dvmdb/device",
-                "fields": ["name", "ip", "platform_str", "os_ver", "desc", "vdom", "conn_status", "adom"]
+                "fields": CONSTANTS.DEVICE_FIELDS
             }
         ]
         response_global = self._post("get", params_global)
@@ -119,7 +130,7 @@ class FortiManagerAPI:
         params = [
             {
                 "url": "/dvmdb/adom/root/device",
-                "fields": ["name", "ip", "platform_str", "os_ver", "desc", "vdom", "conn_status", "adom"]
+                "fields": CONSTANTS.DEVICE_FIELDS
             }
         ]
         response = self._post("get", params)
@@ -130,18 +141,17 @@ class FortiManagerAPI:
         # Eğer ikisi de hata verdiyse None dön
         return None
 
-    def get_vdoms(self, device_name):
+    def get_vdoms(self, device_name: str) -> List[str]:
         """
         Cihazdaki VDOM listesini çeker.
         """
         if not self.session_id and not self.api_token: return []
         
         # DVMDB üzerinden cihazın VDOM listesini al
-        # Not: FortiManager versiyonuna göre path değişebilir, genelde bu yapıdadır.
         params = [
             {
                 "url": f"/dvmdb/adom/root/device/{device_name}/vdom",
-                "fields": ["name", "status"]
+                "fields": CONSTANTS.VDOM_FIELDS
             }
         ]
         response = self._post("get", params)
@@ -158,7 +168,7 @@ class FortiManagerAPI:
             
         return vdoms
 
-    def get_interfaces(self, device_name, vdom="root", adom="root"):
+    def get_interfaces(self, device_name: str, vdom: str = "root", adom: str = "root") -> List[Dict]:
         """
         Belirli bir cihaz ve VDOM için interfaceleri çeker.
         Path: /pm/config/adom/{adom}/device/{device}/vdom/{vdom}/system/interface
@@ -178,7 +188,7 @@ class FortiManagerAPI:
             params = [
                 {
                     "url": url,
-                    "fields": ["name", "status", "type", "ip", "vdom", "link-status", "admin-status"]
+                    "fields": CONSTANTS.INTERFACE_FIELDS
                 }
             ]
             response = self._post("get", params)
@@ -190,7 +200,7 @@ class FortiManagerAPI:
         logger.warning(f"get_interfaces failed for {device_name} (VDOM:{vdom}, ADOM:{adom}). Checked paths: {candidate_urls}")
         return []
 
-    def check_task_status(self, task_id):
+    def check_task_status(self, task_id: int) -> Optional[Dict]:
         """
         Task durumunu sorgular.
         Endpoint: /task/task/{task_id}
@@ -213,7 +223,7 @@ class FortiManagerAPI:
                 pass
         return None
 
-    def set_dns(self, primary, secondary):
+    def set_dns(self, primary: str, secondary: str) -> Tuple[bool, str]:
         """
         Sistem DNS ayarlarini gunceller.
         Endpoint: /sys/dns
@@ -239,7 +249,7 @@ class FortiManagerAPI:
                 
         return False, f"Bilinmeyen Hata: {json.dumps(response)}"
 
-    def add_ldap_server(self, name, server_ip, cnid="cn", dn=""):
+    def add_ldap_server(self, name: str, server_ip: str, cnid: str = "cn", dn: str = "") -> Tuple[bool, str]:
         """
         LDAP Sunucusu ekler.
         Endpoint: /pm/config/adom/root/obj/user/ldap
@@ -258,7 +268,7 @@ class FortiManagerAPI:
             return True, "LDAP Server Added"
         return False, f"LDAP Add Failed: {json.dumps(response)}"
 
-    def import_certificate(self, name, pfx_base64, password):
+    def import_certificate(self, name: str, pfx_base64: str, password: str) -> Tuple[bool, str]:
         """
         Yerel Sertifika (PFX) yukler.
         Endpoint: /pm/config/adom/root/obj/vpn/certificate/local
@@ -276,22 +286,14 @@ class FortiManagerAPI:
             return True, "Certificate Imported"
         return False, f"Cert Import Failed: {json.dumps(response)}"
 
-    def test_ldap(self, server_name, username, password):
+    def test_ldap(self, server_name: str, username: str, password: str) -> Tuple[bool, str]:
         """
         LDAP baglantisini test eder.
-        Not: FMG API'de dogrudan test endpointi versiyona gore degisir.
-        Genelde 'exec' altinda user test komutu vardir.
         """
         if not self.session_id and not self.api_token: return False, "No Session"
-        
-        # Ornek Endpoint: /pm/config/adom/root/obj/user/ldap/dynamic/test
-        # Simdilik sadece baglanti var mi diye server pingliyoruz (Mock gibi)
-        # Gercek bir test icin FMG uzerinde 'diagnose test authserver ldap' benzeri komut gerekir.
-        # Biz burada basitce 'get' ile sunucunun varligini kontrol edelim.
-        
         return True, "Test Başarılı (Simülasyon)" 
 
-    def add_admin_profile(self, name, description=""):
+    def add_admin_profile(self, name: str, description: str = "") -> Tuple[bool, str]:
         """
         Admin Profili Ekler.
         Endpoint: /sys/admin/profile
@@ -311,7 +313,7 @@ class FortiManagerAPI:
             return False, f"Error: {code}"
         return False, "Failed"
 
-    def add_admin_user(self, name, password, profile):
+    def add_admin_user(self, name: str, password: str, profile: str) -> Tuple[bool, str]:
         """
         Yerel Admin Kullanicisi Ekler.
         Endpoint: /sys/admin/user
@@ -332,14 +334,14 @@ class FortiManagerAPI:
             return False, f"Error: {code}"
         return False, "Failed"
         
-    def delete_admin_user(self, name):
-        if not self.session_id and not self.api_token: return False, "No Session"
+    def delete_admin_user(self, name: str) -> bool:
+        if not self.session_id and not self.api_token: return False
         response = self._post("delete", [{"url": "/sys/admin/user", "data": {"userid": name}}])
         if response and 'result' in response and response['result'][0]['status']['code'] == 0:
-            return True, "User Deleted"
-        return False, "Delete Failed"
+            return True
+        return False
 
-    def _install_config(self, device_name, vdom="root", adom="root"):
+    def _install_config(self, device_name: str, vdom: str = "root", adom: str = "root") -> Tuple[bool, str]:
         """
         Cihaz konfigürasyonunu (Device Settings) cihaza yükler (Install).
         Endpoint: /securityconsole/install/device
@@ -375,7 +377,7 @@ class FortiManagerAPI:
                 pass
         return False, "Install Failed (No Response)"
 
-    def toggle_interface(self, device_name, interface_name, new_status, vdom="root", adom="root"):
+    def toggle_interface(self, device_name: str, interface_name: str, new_status: str, vdom: str = "root", adom: str = "root") -> Tuple[bool, str]:
         import time
         if not self.session_id and not self.api_token: return False, "No Session"
         

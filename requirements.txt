@@ -5,3 +5,4 @@ pytz
 ldap3
 pyOpenSSL
 extra-streamlit-components
+bcrypt
