@@ -2,14 +2,10 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-## Active Tracks
-
-- [~] **Track: Enhance SIEM testing utilities by separating test log sending from production audit logging.**
-  *Link: [./tracks/siem_testing_utils_20260120/](./tracks/siem_testing_utils_20260120/)*
-
----
-
 ## Archived Tracks
+
+- [x] **Track: Enhance SIEM testing utilities by separating test log sending from production audit logging.**
+  *Link: [./archive/siem_testing_utils_20260120/](./archive/siem_testing_utils_20260120/)*
 
 - [x] **Track: Refactor configuration JSON structure to group FortiManager settings under 'fmg_settings' object for better organization.**
   *Link: [./archive/refactor_config_structure_20260120/](./archive/refactor_config_structure_20260120/)*
