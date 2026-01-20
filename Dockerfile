@@ -7,14 +7,9 @@ WORKDIR /app
 # Gerekli dosyalari kopyala (Bosluklu klasorler icin JSON array syntax kullanilmali)
 COPY requirements.txt .
 COPY src/ ./src/
-<<<<<<< HEAD
 COPY ["MFA Logo/", "./MFA Logo/"]
 COPY ["MFA Background/", "./MFA Background/"]
 COPY .streamlit/ ./.streamlit/
-=======
-COPY ["MFA Background/", "./MFA Background/"]
-COPY ["MFA Logo/", "./MFA Logo/"]
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
 
 # Bagimliliklari yukle
 RUN pip install --no-cache-dir -r requirements.txt
