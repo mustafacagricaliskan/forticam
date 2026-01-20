@@ -4,3 +4,4 @@ pandas
 pytz
 ldap3
 pyOpenSSL
+extra-streamlit-components

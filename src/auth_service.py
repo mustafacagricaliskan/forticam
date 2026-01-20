@@ -2,48 +2,108 @@ import streamlit as st
 import datetime
 import ssl
 import logging
+import uuid
 from ldap3 import Server, Connection, ALL, Tls
 from config_service import ConfigService
 
 # Logger Yapilandirmasi
 logger = logging.getLogger(__name__)
 
+# Basit In-Memory Session Store (Tek Pod icin yeterli)
+# Token -> SessionData
+SESSION_STORE = {}
+# Username -> [Token1, Token2] (Ters indeks)
+USER_SESSIONS = {}
+
 class User:
-    def __init__(self, username, role, permissions=None, global_allowed_ports=None, device_allowed_ports=None):
+    def __init__(self, username, role, user_groups=None):
         self.username = username
         self.role = role
-        self.permissions = permissions or {}
-        self.global_allowed_ports = global_allowed_ports or []
-        # Standardize: device_allowed_ports
-        self.device_allowed_ports = device_allowed_ports or {}
-        # Alias for backward compatibility if needed elsewhere
-        self.allowed_ports = self.device_allowed_ports
+        self.user_groups = user_groups or [] # LDAP Gruplarini sakla
         self.login_time = datetime.datetime.now()
 
     def has_access_to_port(self, device_name, port_name):
         """
-        Check if user has access to a specific port on a device.
+        Check access dynamically by reloading config.
         """
-        # 1. Super User check
+        # 1. Super User / Admin check (Static)
         if self.username == "admin" or self.role == "Super_User":
             return True
             
-        # 2. Strict Whitelist Logic
-        # If no permissions defined at all? Strict mode -> Deny.
+        # 2. Load latest config
+        cfg = ConfigService.load_config()
         
-        # Check Global Ports
-        if port_name in self.global_allowed_ports:
+        # 3. Determine Permission Source
+        global_allowed = []
+        device_allowed = {}
+        
+        # A. Local User Check
+        local_acc = next((u for u in cfg.get("local_accounts", []) if u['user'] == self.username), None)
+        if local_acc:
+            global_allowed = local_acc.get("global_allowed_ports", [])
+            device_allowed = local_acc.get("device_allowed_ports", local_acc.get("allowed_ports", {}))
+        
+        # B. LDAP User Check (if not local and has groups)
+        elif self.user_groups:
+            mappings = cfg.get("ldap_settings", {}).get("mappings", [])
+            # Re-evaluate mapping with cached groups but NEW config
+            _, g_ports, d_ports = AuthService._get_profile_by_ldap_groups(self.user_groups, mappings)
+            global_allowed = g_ports or []
+            device_allowed = d_ports or {}
+            
+        # 4. Global Check
+        if port_name in global_allowed:
             return True
             
-        # Check Device Specific Ports
-        if device_name in self.device_allowed_ports:
-            if port_name in self.device_allowed_ports[device_name]:
-                return True
-                
+        # 5. Device Specific Check
+        if port_name in device_allowed.get(device_name, []):
+            return True
+            
         return False
 
 class AuthService:
     
+    @staticmethod
+    def create_session_token(user_obj):
+        """Kullanici icin unique token olusturur ve saklar."""
+        token = str(uuid.uuid4())
+        SESSION_STORE[token] = {
+            "user": user_obj,
+            "created_at": datetime.datetime.now()
+        }
+        
+        # Kullaniciya ait tokenlari kaydet
+        if user_obj.username not in USER_SESSIONS:
+            USER_SESSIONS[user_obj.username] = []
+        USER_SESSIONS[user_obj.username].append(token)
+        
+        return token
+
+    @staticmethod
+    def validate_session_token(token):
+        """Token gecerli mi kontrol eder, gecerliyse user objesini doner."""
+        if token in SESSION_STORE:
+            return SESSION_STORE[token]["user"]
+        return None
+
+    @staticmethod
+    def logout_user(username):
+        """Kullanicinin TUM aktif oturumlarini (tokenlarini) sunucudan siler."""
+        if username in USER_SESSIONS:
+            tokens = USER_SESSIONS[username]
+            for t in tokens:
+                if t in SESSION_STORE:
+                    del SESSION_STORE[t]
+            # Listeyi temizle
+            del USER_SESSIONS[username]
+
+    @staticmethod
+    def remove_session_token(token):
+        """Token'i session store'dan siler (Server-side logout)."""
+        if token in SESSION_STORE:
+            # Username indeksinden de silmek lazim ama karmasik olmasin diye logout_user kullaniyoruz.
+            del SESSION_STORE[token]
+
     @staticmethod
     def _get_profile_by_ldap_groups(user_groups, mappings):
         if not user_groups or not mappings:
@@ -69,21 +129,12 @@ class AuthService:
         cfg = ConfigService.load_config()
         
         # 1. YEREL KULLANICI KONTROLU
-        if username == "admin" and password == "admin":
-            st.session_state['current_user'] = User("admin", "Super_User")
-            return True, "Başarılı"
-            
         local_accounts = cfg.get("local_accounts", [])
         for acc in local_accounts:
             if acc['user'] == username and acc.get('password') == password:
                 role = acc.get('profile', 'Standard_User')
-                # Yerel kullanicilar icin izinleri yukle
-                g_ports = acc.get("global_allowed_ports", [])
-                
-                # Cihaz izinleri: once yeni key, yoksa eski key
-                d_ports = acc.get("device_allowed_ports", acc.get("allowed_ports", {}))
-                
-                st.session_state['current_user'] = User(username, role, global_allowed_ports=g_ports, device_allowed_ports=d_ports)
+                # Yerel kullanicilar icin statik port listesine gerek yok, dinamik bakilacak
+                st.session_state['current_user'] = User(username, role)
                 return True, "Başarılı"
 
         # 2. LDAP KONTROLU
@@ -150,15 +201,16 @@ class AuthService:
                             user_groups = [str(g) for g in entry['memberOf'].values]
                     
                     mappings = ldap_config.get("mappings", [])
-                    profile_name, g_ports, d_ports = AuthService._get_profile_by_ldap_groups(user_groups, mappings)
+                    # Sadece profil ismini aliyoruz, portlari User class dinamik cekecek
+                    profile_name, _, _ = AuthService._get_profile_by_ldap_groups(user_groups, mappings)
                     
                     if not profile_name:
                         conn.unbind()
                         group_list = ", ".join([g.split(',')[0].replace('CN=', '') for g in user_groups])
                         return False, f"LDAP Girişi Başarılı ancak yetki grubunuz eşleşmedi. AD Gruplarınız: {group_list if group_list else 'Grup Bulunamadı'}"
                     
-                    # LDAP Mapping'den gelen portlari yukle
-                    st.session_state['current_user'] = User(username, profile_name, global_allowed_ports=g_ports, device_allowed_ports=d_ports)
+                    # Kullaniciyi gruplariyla birlikte olustur
+                    st.session_state['current_user'] = User(username, profile_name, user_groups=user_groups)
                     conn.unbind()
                     return True, "Başarılı"
                     

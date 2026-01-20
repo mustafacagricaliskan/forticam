@@ -142,13 +142,40 @@ def render_settings():
         new_prof = st.selectbox("Yetki Profili", avail_profs, index=cur_idx)
         acc['profile'] = new_prof
         
+        # SIFRE DEGISTIRME ALANI
+        st.divider()
+        st.markdown("**🔐 Şifre Değiştir**")
+        p_col1, p_col2 = st.columns(2)
+        new_pass_1 = p_col1.text_input("Yeni Şifre", type="password", key=f"p1_{username}", placeholder="Boş bırakılırsa değişmez")
+        new_pass_2 = p_col2.text_input("Şifre Tekrar", type="password", key=f"p2_{username}", placeholder="Aynı şifreyi tekrar girin")
+        
+        pass_update_ready = False
+        if new_pass_1 or new_pass_2:
+            if new_pass_1 == new_pass_2:
+                if new_pass_1:
+                    acc['password'] = new_pass_1
+                    st.success("✅ Şifre güncellenecek.")
+                    pass_update_ready = True
+            else:
+                st.error("❌ Şifreler eşleşmiyor!")
+                pass_update_ready = False
+        
         st.divider()
         # Refactored Permission Manager
         render_permission_manager(acc, f"user_{username}")
 
         st.divider()
-        if st.button("Kapat", use_container_width=True):
+        # Kaydet butonunu eger sifreler uyusmuyorsa disable etme veya uyari verme mantigi
+        # Eger kullanici sifre alanlarina bisey yazdiysa ama eslesmediyse, kaydetme islemi eski sifreyle devam eder ama biz uyaralim.
+        can_save = True
+        if (new_pass_1 or new_pass_2) and not pass_update_ready:
+            can_save = False
+            st.warning("⚠️ Şifreler eşleşmediği için kaydedilemez. Lütfen düzeltin.")
+
+        if st.button("Kaydet ve Kapat", use_container_width=True, disabled=not can_save):
             ConfigService.save_config(cfg)
+            st.success("Kullanıcı güncellendi.")
+            time.sleep(0.5)
             st.rerun()
 
     # --- MAPPING EDIT DIALOG ---
@@ -176,10 +203,11 @@ def render_settings():
             ConfigService.save_config(cfg)
             st.rerun()
 
-    tab_auth, tab_sys, tab_email = st.tabs([
+    tab_auth, tab_sys, tab_email, tab_siem = st.tabs([
         "🔐 Kimlik Doğrulama & Yetkilendirme", 
         "🛠️ Sistem Servisleri (DNS/SSL)",
-        "📧 E-posta Bildirimleri"
+        "📧 E-posta Bildirimleri",
+        "🛡️ SIEM Ayarları"
     ])
     
     # --- TAB 1: AUTH & RBAC ---
@@ -234,9 +262,18 @@ def render_settings():
                 
                 if st.button("💾 LDAP Ayarlarını Kaydet", type="primary", use_container_width=True, disabled=not can_edit):
                     final_servers = [s.strip() for s in st.session_state.temp_servers if s.strip()]
-                    ldap_cfg.update({"enabled": new_enabled, "servers": final_servers, "port": port, "use_ssl": use_ssl, "base_dn": base_dn})
-                    cfg["ldap_settings"] = ldap_cfg
-                    ConfigService.save_config(cfg); st.success("Kaydedildi."); time.sleep(0.5); st.rerun()
+                    # RELOAD-MODIFY-SAVE Pattern
+                    disk_cfg = ConfigService.load_config()
+                    disk_cfg.get("ldap_settings", {}).update({
+                        "enabled": new_enabled, 
+                        "servers": final_servers, 
+                        "port": port, 
+                        "use_ssl": use_ssl, 
+                        "base_dn": base_dn
+                    })
+                    ConfigService.save_config(disk_cfg)
+                    st.session_state.saved_config = disk_cfg
+                    st.success("Kaydedildi."); time.sleep(0.5); st.rerun()
 
             st.markdown("##### 🔗 Grup & Rol Eşleştirmeleri")
             with st.container(border=True):
@@ -257,15 +294,22 @@ def render_settings():
                             show_mapping_edit(i)
                         
                         if c4.button("🗑️", key=f"m_del_{i}", disabled=not can_edit):
-                            st.session_state.temp_mappings.pop(i); st.rerun()
+                            st.session_state.temp_mappings.pop(i)
+                            st.rerun()
                 
                 c_a1, c_a2 = st.columns(2)
                 if c_a1.button("➕ Ekle", disabled=not can_edit): 
                     st.session_state.temp_mappings.append({"group_dn": "", "profile": "Standard_User", "global_allowed_ports": [], "device_allowed_ports": {}})
                     st.rerun()
                 if c_a2.button("💾 Mappings Kaydet", disabled=not can_edit):
-                    ldap_cfg["mappings"] = st.session_state.temp_mappings
-                    ConfigService.save_config(cfg); st.success("Kaydedildi."); time.sleep(0.5); st.rerun()
+                    disk_cfg = ConfigService.load_config()
+                    if "ldap_settings" not in disk_cfg:
+                        disk_cfg["ldap_settings"] = {}
+                    disk_cfg["ldap_settings"]["mappings"] = st.session_state.temp_mappings
+                    
+                    ConfigService.save_config(disk_cfg)
+                    st.session_state.saved_config = disk_cfg
+                    st.success("Kaydedildi."); time.sleep(0.5); st.rerun()
 
             with st.expander("🧪 Bağlantı Testi", expanded=True):
                 st.caption("Girilen ayarlarla bir kullanıcının LDAP bağlantısını doğrulayın.")
@@ -308,11 +352,15 @@ def render_settings():
                     sel_val = st.segmented_control(label=display_mod, options=["None", "Read", "Write"], default=levels[curr_val], key=f"seg_dlg_{edit_name}_{display_mod}", label_visibility="collapsed", disabled=is_super)
                     u_perms[mod_map[display_mod]] = level_rev.get(sel_val, 0)
                 if st.button("Save", type="primary", disabled=is_super):
-                    if edit_name == "NEW_PROFILE": cfg["admin_profiles"].append({"name": new_n, "permissions": u_perms})
+                    disk_cfg = ConfigService.load_config()
+                    if edit_name == "NEW_PROFILE": 
+                        disk_cfg["admin_profiles"].append({"name": new_n, "permissions": u_perms})
                     else:
-                        for prf in cfg["admin_profiles"]:
+                        for prf in disk_cfg["admin_profiles"]:
                             if prf['name'] == edit_name: prf['permissions'] = u_perms; prf['name'] = new_n
-                    ConfigService.save_config(cfg); st.rerun()
+                    ConfigService.save_config(disk_cfg)
+                    st.session_state.saved_config = disk_cfg
+                    st.rerun()
 
             with st.container(border=True):
                 for p in profiles:
@@ -335,30 +383,65 @@ def render_settings():
                         show_user_edit(acc['user'])
                         
                     if c4.button("🗑️", key=f"u_del_{acc['user']}", disabled=not can_edit):
-                        cfg["local_accounts"] = [x for x in accounts if x['user'] != acc['user']]
-                        ConfigService.save_config(cfg); st.rerun()
+                        disk_cfg = ConfigService.load_config()
+                        disk_cfg["local_accounts"] = [x for x in disk_cfg.get("local_accounts", []) if x['user'] != acc['user']]
+                        ConfigService.save_config(disk_cfg)
+                        st.session_state.saved_config = disk_cfg
+                        st.rerun()
                 with st.expander("➕ Add User"):
                     un = st.text_input("Kullanıcı")
                     up = st.text_input("Şifre ", type="password")
                     upr = st.selectbox("Profil ", [p['name'] for p in cfg.get("admin_profiles", [])])
                     if st.button("Kullanıcıyı Kaydet"):
-                        cfg["local_accounts"].append({"user": un, "profile": upr, "password": up})
-                        ConfigService.save_config(cfg); st.rerun()
+                        disk_cfg = ConfigService.load_config()
+                        disk_cfg.get("local_accounts", []).append({"user": un, "profile": upr, "password": up})
+                        ConfigService.save_config(disk_cfg)
+                        st.session_state.saved_config = disk_cfg
+                        st.rerun()
 
     # --- TAB 2: SYSTEM ---
     with tab_sys:
         c_dns, c_cert = st.columns(2, gap="large")
         with c_dns:
             with st.container(border=True):
-                dns_ok = SystemService.check_dns_status()
+                # Configden test hedefini al (Yoksa varsayilan mfa.gov.tr)
+                test_host = cfg.get("connectivity_check_host", "mfa.gov.tr")
+                
+                # Belirlenen hosta gore kontrol et
+                dns_ok = SystemService.check_dns_status(test_host)
                 d_col, d_stat = ("green", "ONLINE") if dns_ok else ("red", "OFFLINE")
-                st.markdown(f"### 🌐 DNS Ayarları :{d_col}[● {d_stat}]")
+                
+                st.markdown(f"### 🌐 DNS & Bağlantı :{d_col}[● {d_stat}]")
+                st.caption(f"Test Hedefi: {test_host}")
+                
                 dns1 = st.text_input("DNS 1", value=cfg.get("primary_dns", "8.8.8.8"), disabled=not can_edit)
                 dns2 = st.text_input("DNS 2", value=cfg.get("secondary_dns", "1.1.1.1"), disabled=not can_edit)
+                
+                st.markdown("---")
+                new_test_host = st.text_input("Bağlantı Testi Hedefi (FQDN)", value=test_host, help="Air-gap (Kapalı Devre) ağlarda 'Offline' hatası almamak için buraya iç ağınızdaki erişilebilir bir sunucu adresi (örn: internal.domain.local) girin.", disabled=not can_edit)
+                
                 if st.button("Uygula", disabled=not can_edit, type="primary"):
-                    cfg.update({"primary_dns": dns1, "secondary_dns": dns2})
-                    ConfigService.save_config(cfg); s, m = SystemService.update_dns(dns1, dns2)
-                    st.success(m) if s else st.warning(m); time.sleep(0.5); st.rerun()
+                    disk_cfg = ConfigService.load_config()
+                    disk_cfg.update({
+                        "primary_dns": dns1, 
+                        "secondary_dns": dns2,
+                        "connectivity_check_host": new_test_host
+                    })
+                    ConfigService.save_config(disk_cfg)
+                    st.session_state.saved_config = disk_cfg
+                    
+                    # DNS guncelleme (OpenShift'te calismayabilir ama config kaydedilir)
+                    s, m = SystemService.update_dns(dns1, dns2)
+                    
+                    if s: 
+                        st.success(m)
+                    elif "Permission denied" in str(m):
+                        # Konteyner ortaminda beklenen durum
+                        st.info(f"✅ Ayarlar veritabanına kaydedildi.\n\nℹ️ Not: Konteyner kısıtlamaları nedeniyle işletim sistemi DNS ayarları (/etc/resolv.conf) uygulama içinden değiştirilemedi. Bu normaldir. DNS ayarlarını Docker/OpenShift konfigürasyonundan (YAML) yapmanız gerekebilir.")
+                    else: 
+                        st.warning(f"Ayarlar kaydedildi ancak DNS dosyası güncellenemedi: {m}")
+                    
+                    time.sleep(3); st.rerun()
         with c_cert:
             with st.container(border=True):
                 st.markdown("### 📜 SSL Sertifikası")
@@ -412,15 +495,18 @@ def render_settings():
         c_save, c_test = st.columns([1, 4])
         
         if c_save.button("💾 Ayarları Kaydet", type="primary", disabled=not can_edit, key="save_email_settings"):
-            email_cfg["enabled"] = is_enabled
-            email_cfg["smtp_server"] = smtp_server
-            email_cfg["smtp_port"] = smtp_port
-            email_cfg["sender_email"] = sender_email
-            email_cfg["sender_password"] = sender_password
-            email_cfg["receiver_emails"] = current_receivers
-            
-            cfg["email_settings"] = email_cfg
-            ConfigService.save_config(cfg)
+            disk_cfg = ConfigService.load_config()
+            # Update specific section
+            disk_cfg["email_settings"] = {
+                "enabled": is_enabled,
+                "smtp_server": smtp_server,
+                "smtp_port": smtp_port,
+                "sender_email": sender_email,
+                "sender_password": sender_password,
+                "receiver_emails": current_receivers
+            }
+            ConfigService.save_config(disk_cfg)
+            st.session_state.saved_config = disk_cfg
             st.success("E-posta ayarları başarıyla kaydedildi!")
             time.sleep(1)
             st.rerun()
@@ -461,3 +547,76 @@ def render_settings():
                         st.success(f"Başarılı: {msg}")
                     else:
                         st.error(f"Hata: {msg}")
+
+    # --- TAB 4: SIEM ---
+    with tab_siem:
+        siem_cfg = cfg.get("siem_settings", {})
+        enabled = siem_cfg.get("enabled", False)
+        
+        # Check Status
+        status_color = "grey"
+        status_text = "DISABLED"
+        
+        if enabled:
+            from log_service import LogService
+            s_host = siem_cfg.get("server")
+            s_port = siem_cfg.get("port", 514)
+            s_proto = siem_cfg.get("protocol", "UDP")
+            
+            is_ok, msg = LogService.check_siem_connection(s_host, s_port, s_proto)
+            if is_ok:
+                status_color = "green"
+                status_text = "ONLINE" if s_proto == "TCP" else "READY (UDP)"
+            else:
+                status_color = "red"
+                status_text = "OFFLINE"
+        
+        st.header(f"🛡️ SIEM / Syslog Ayarları :{status_color}[● {status_text}]")
+        if enabled and status_color == "red":
+            st.caption(f"⚠️ Hata Detayı: {msg if 'msg' in locals() else 'Bilinmiyor'}")
+        else:
+            st.caption("Uygulama audit loglarının gerçek zamanlı olarak bir SIEM ürününe (Syslog üzerinden) gönderilmesi.")
+        
+        is_siem_enabled = st.toggle("SIEM Gönderimini Aktif Et", value=enabled, disabled=not can_edit)
+        
+        with st.container(border=True):
+            c_host, c_port, c_proto = st.columns([3, 1, 1])
+            
+            siem_host = c_host.text_input("Syslog Sunucu IP/Host", value=siem_cfg.get("server", ""), placeholder="192.168.1.100", disabled=not can_edit)
+            siem_port = c_port.number_input("Port", value=siem_cfg.get("port", 514), step=1, disabled=not can_edit)
+            siem_proto = c_proto.selectbox("Protokol", options=["UDP", "TCP"], index=0 if siem_cfg.get("protocol") == "UDP" else 1, disabled=not can_edit)
+            
+        if st.button("💾 SIEM Ayarlarını Kaydet", type="primary", disabled=not can_edit):
+            disk_cfg = ConfigService.load_config()
+            disk_cfg["siem_settings"] = {
+                "enabled": is_siem_enabled,
+                "server": siem_host,
+                "port": int(siem_port),
+                "protocol": siem_proto
+            }
+            ConfigService.save_config(disk_cfg)
+            st.session_state.saved_config = disk_cfg
+            st.success("SIEM ayarları kaydedildi!")
+            time.sleep(1)
+            st.rerun()
+            
+        col_test, col_export = st.columns(2)
+        
+        if col_test.button("🧪 Test Logu Gönder", disabled=not can_edit, use_container_width=True):
+            if not siem_host:
+                st.error("Lütfen önce sunucu adresini girin.")
+            else:
+                from log_service import LogService
+                with st.spinner("SIEM'e test logu gönderiliyor..."):
+                    LogService.log_action(user.username, "SIEM_TEST", "SYSTEM", "SIEM Bağlantı Test Mesajı")
+                    st.toast("Test logu gönderildi. Lütfen SIEM tarafını kontrol edin.", icon="🛡️")
+
+        if col_export.button("📤 Geçmiş Logları Aktar (CSV -> SIEM)", disabled=not can_edit, use_container_width=True, help="Sistemde kayıtlı olan tüm geçmiş logları (CSV) yapılandırılmış SIEM sunucusuna toplu olarak gönderir."):
+            from log_service import LogService
+            if not siem_cfg.get("enabled"):
+                st.warning("Lütfen önce SIEM gönderimini aktif edip ayarları kaydedin.")
+            else:
+                with st.spinner("Geçmiş loglar aktarılıyor..."):
+                    success, msg = LogService.export_past_logs_to_siem()
+                    if success: st.success(msg)
+                    else: st.error(msg)

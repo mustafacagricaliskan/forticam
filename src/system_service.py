@@ -6,7 +6,7 @@ class SystemService:
     """Uygulamanın (Docker) sistem ayarlarını yönetir."""
 
     @staticmethod
-    def check_dns_status(test_host="google.com"):
+    def check_dns_status(test_host="mfa.gov.tr"):
         """DNS cozumlemesi calisiyor mu kontrol eder."""
         import socket
         try:
@@ -45,9 +45,12 @@ class SystemService:
             cert = crypto.dump_certificate(crypto.FILETYPE_PEM, pfx.get_certificate())
             key = crypto.dump_privatekey(crypto.FILETYPE_PEM, pfx.get_privatekey())
             
-            # Sertifikaları .streamlit klasörüne veya belirlenen bir yere kaydet
-            cert_path = "cert.pem"
-            key_path = "key.pem"
+            # Sertifikaları data klasörüne kaydet
+            data_dir = "data"
+            if not os.path.exists(data_dir): os.makedirs(data_dir, exist_ok=True)
+
+            cert_path = os.path.join(data_dir, "cert.pem")
+            key_path = os.path.join(data_dir, "key.pem")
             
             with open(cert_path, "wb") as f: f.write(cert)
             with open(key_path, "wb") as f: f.write(key)

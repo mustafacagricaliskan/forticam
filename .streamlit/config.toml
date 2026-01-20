@@ -1,6 +1,14 @@
-[client]
-toolbarMode = "viewer" # Geliştirici araç çubuğunu gizle
-showSidebarNavigation = false # Gerekirse kenar çubuğu navigasyonunu gizle
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
 
-[ui]
-hideTopBar = true # Üst çubuğu tamamen gizle (Streamlit'in yeni sürümleri için)
+[browser]
+gatherUsageStats = false
+serverAddress = "0.0.0.0"
+
+[theme]
+base = "light"
+primaryColor = "#5D5FEF"

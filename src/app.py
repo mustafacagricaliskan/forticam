@@ -1,10 +1,16 @@
 import streamlit as st
+# Force Rebuild
 import time
-import json
 import datetime
 import pytz
-import base64
 import pandas as pd
+import logging
+
+# Suppress asyncio and tornado network noise
+logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+logging.getLogger('tornado.access').setLevel(logging.WARNING)
+logging.getLogger('tornado.application').setLevel(logging.WARNING)
+logging.getLogger('tornado.general').setLevel(logging.WARNING)
 
 # Servisler ve Bilesenler
 from auth_service import AuthService
@@ -57,41 +63,7 @@ if not st.session_state.fmg_connected:
 
 # --- PAGES ---
 
-def render_dashboard():
-    st.header("Dashboard")
-    tz = pytz.timezone(st.session_state.user_timezone)
-    current_time = datetime.datetime.now(tz).strftime("%H:%M:%S")
-    st.caption(f"🕒 {current_time} ({st.session_state.user_timezone})")
 
-    if not st.session_state.fmg_connected:
-        st.warning("⚠️ FortiManager bağlantısı yok. Lütfen 'FMG Bağlantısı' menüsünden bağlanın.")
-        return
-
-    api = st.session_state.api
-    if not st.session_state.devices:
-        with st.spinner("Cihazlar getiriliyor..."):
-            devices_res = api.get_devices()
-            if devices_res is None:
-                st.error(f"❌ FortiManager'a erişilemiyor ({st.session_state.fmg_ip}).")
-                return
-            st.session_state.devices = devices_res
-            
-    if not st.session_state.devices:
-        st.info("Yönetilen cihaz bulunamadı.")
-        return
-
-    col_dev, col_vdom = st.columns([3, 1])
-    device_names = [d['name'] for d in st.session_state.devices]
-    with col_dev:
-        sel_dev = st.selectbox("Firewall", device_names)
-    
-    vdoms = ["root"]
-    if sel_dev:
-        if sel_dev not in st.session_state.vdoms_cache:
-            st.session_state.vdoms_cache[sel_dev] = api.get_vdoms(sel_dev)
-        vdoms = st.session_state.vdoms_cache[sel_dev]
-    with col_vdom:
-        sel_vdom = st.selectbox("VDOM", vdoms)
 
 # --- CONSTANTS ---
 PHYSICAL_TYPES = ['physical', 'hard-switch', 'fsw', 'root', '0', '4']
@@ -140,7 +112,58 @@ def render_dashboard():
     st.caption(f"🕒 {current_time} ({st.session_state.user_timezone})")
 
     if not st.session_state.fmg_connected:
+        # --- RETRY AUTO CONNECT (LAZY LOAD) ---
+        # Standart kullanicilarda bazen session baslangicinda config yuklenmemis olabilir.
+        # Dashboard acildiginda baglanti yoksa, tekrar config okuyup baglanmayi dene.
+        try:
+            cfg = ConfigService.load_config()
+            r_ip = cfg.get("fmg_ip")
+            r_token = cfg.get("api_token")
+            
+            if r_ip and r_token:
+                # Baglanti denemesi (Sessiz modda)
+                print(f"DEBUG: Dashboard Retry Connect -> {r_ip}")
+                api = FortiManagerAPI(r_ip, None, None, r_token)
+                if api.login():
+                    st.session_state.api = api
+                    st.session_state.fmg_connected = True
+                    st.session_state.fmg_ip = r_ip
+                    st.session_state.saved_config = cfg
+                    st.rerun()
+        except Exception as e:
+            print(f"Dashboard Retry Connect Error: {e}")
+
+    if not st.session_state.fmg_connected:
         st.warning("⚠️ FortiManager bağlantısı yok. Lütfen 'FMG Bağlantısı' menüsünden bağlanın.")
+        
+        # DEBUG BILGISI (Sorun tespiti icin)
+        with st.expander("🛠️ Bağlantı Sorun Giderme"):
+            cfg = ConfigService.load_config()
+            debug_ip = cfg.get("fmg_ip")
+            debug_token = cfg.get("api_token")
+            
+            st.write(f"**Yüklü IP:** {debug_ip if debug_ip else 'YOK ❌'}")
+            st.write(f"**Yüklü Token:** {'***' + debug_token[-4:] if debug_token and len(debug_token)>4 else 'YOK ❌'}")
+            
+            if debug_ip and debug_token:
+                st.info("Ayarlar mevcut ancak bağlantı kurulamıyor. Lütfen IP erişimini ve Token geçerliliğini kontrol edin.")
+                # Manuel Test Butonu
+                if st.button("Tekrar Dene (Manuel)"):
+                    try:
+                        api = FortiManagerAPI(debug_ip, None, None, debug_token)
+                        if api.login():
+                            st.session_state.api = api
+                            st.session_state.fmg_connected = True
+                            st.session_state.fmg_ip = debug_ip
+                            st.success("Bağlantı Başarılı! Sayfa yenileniyor...")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("Login Başarısız. API Token yetkilerini kontrol edin.")
+                    except Exception as e:
+                        st.error(f"Bağlantı Hatası: {e}")
+            else:
+                st.error("Konfigürasyon dosyasında IP veya Token eksik.")
         return
 
     api = st.session_state.api
@@ -157,10 +180,28 @@ def render_dashboard():
         return
 
     col_dev, col_vdom = st.columns([3, 1])
-    device_names = [d['name'] for d in st.session_state.devices]
-    with col_dev:
-        sel_dev = st.selectbox("Firewall", device_names)
     
+    # Cihazlari hazirla: Isim ve Durum Ikonu
+    dev_map = {}
+    for d in st.session_state.devices:
+        # conn_status: 1 (Up), 2 (Down/Sim), 0 (Unknown)
+        # Guvenlik icin str() cevrimi yapiyoruz
+        c_stat = str(d.get('conn_status', '0'))
+        icon = "🟢" if c_stat == '1' else "🔴"
+        label = f"{icon} {d['name']}"
+        dev_map[label] = d
+
+    with col_dev:
+        sel_label = st.selectbox("Firewall", list(dev_map.keys()))
+    
+    # Secimi cihaza cevir
+    target_device = dev_map[sel_label]
+    sel_dev = target_device['name']
+    
+    # Cihaz baglanti ve ADOM durumunu kontrol et
+    is_dev_connected = str(target_device.get('conn_status', '0')) == '1'
+    target_adom = target_device.get('adom', 'root')
+
     vdoms = ["root"]
     if sel_dev:
         if sel_dev not in st.session_state.vdoms_cache:
@@ -171,12 +212,16 @@ def render_dashboard():
 
     # Kullanici Yetki Seviyesini Al
     user = AuthService.get_current_user()
-    from config_service import ConfigService
+    # Config loaded
     cfg = ConfigService.load_config()
     target_profile = next((p for p in cfg.get("admin_profiles", []) if p['name'] == user.role), None)
     
     # Dashboard yetki seviyesi (Default 0)
     dash_perm = 2 if user.username == "admin" else (target_profile.get("permissions", {}).get("Dashboard", 0) if target_profile else 0)
+
+    # Baglanti uyarisi
+    if not is_dev_connected:
+        st.error(f"❌ **{sel_dev}** cihazı şu anda FortiManager'a bağlı değil (Disconnected). Port işlemleri yapılamaz.")
 
     st.subheader(f"🔌 Port Yönetimi: {sel_dev} [{sel_vdom}]")
     
@@ -230,39 +275,93 @@ def render_dashboard():
                 
                 btn_lbl, btn_type, target = ("Kapat", "secondary", "down") if is_up else ("Aç", "primary", "up")
                 
-                # YETKİ KONTROLÜ: Sadece Read-Write (2) ise butonu aktif et
-                can_edit = (dash_perm == 2)
+                # YETKİ KONTROLÜ: Sadece Read-Write (2) ise ve CIHAZ BAGLIYSA butonu aktif et
+                can_edit = (dash_perm == 2) and is_dev_connected
                 
                 if c4.button(btn_lbl, key=f"{sel_dev}_{sel_vdom}_{iface['name']}", type=btn_type, use_container_width=True, disabled=not can_edit):
                     with st.spinner("İşleniyor..."):
-                        success, msg = api.toggle_interface(sel_dev, iface['name'], target, vdom=sel_vdom)
+                        success, msg = api.toggle_interface(sel_dev, iface['name'], target, vdom=sel_vdom, adom=target_adom)
                         user = AuthService.get_current_user().username
                         LogService.log_action(user, f"Port {target.upper()}", f"{sel_dev}[{sel_vdom}]", msg)
                         if success:
                             if "Task:" in msg:
-                                track_task(api, msg.split("Task:")[1].strip().replace(")", ""))
+                                # Task ID'yi al ve dogrulama bilgilerini gonder
+                                tid = msg.split("Task:")[1].strip().replace(")", "")
+                                track_task(api, tid, device_name=sel_dev, vdom=sel_vdom, interface_name=iface['name'], target_status=target)
                             else:
                                 st.toast("Başarılı", icon="✅")
                                 time.sleep(1); st.rerun()
                         else:
-                            st.error("İşlem Başarısız!")
+                            st.error(f"İşlem Başarısız! \nDetay: {msg}")
                 
 
 
-def track_task(api, task_id):
+def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, target_status=None):
     p_bar = st.progress(0, "Başlatılıyor...")
+    status_text = st.empty()
+    
     while True:
         status = api.check_task_status(task_id)
-        if not status: break
+        if not status: 
+            status_text.error("Task durumu alınamadı.")
+            break
+            
         pct = int(status.get("percent", 0))
         state = str(status.get("state", "processing")).lower()
+        
         p_bar.progress(pct, f"İlerleme: %{pct} ({state.upper()})")
+        
         if pct >= 100 or state in ["done", "completed", "failed", "error"]:
-            if state in ["failed", "error"]: st.error("Task Başarısız!")
-            else: st.success("İşlem Tamamlandı!")
+            # Task loglarini detayli al
+            lines = status.get("line", [])
+            log_content = []
+            if isinstance(lines, list):
+                for l in lines:
+                    if isinstance(l, dict):
+                        log_content.append(l.get("detail", str(l)))
+                    else:
+                        log_content.append(str(l))
+            
+            log_text = "\n".join(log_content) if log_content else "Detay bulunamadı."
+            
+            if state in ["failed", "error"]: 
+                status_text.error(f"❌ Task Başarısız! \n{log_text}")
+                time.sleep(5)
+            else: 
+                status_text.success("✅ İşlem Kuyruğu Tamamlandı. Durum doğrulanıyor...")
+                
+                # --- FINAL VERIFICATION ---
+                if device_name and interface_name:
+                    time.sleep(3) # FMG sync icin bekleme
+                    try:
+                        fresh_ifaces = api.get_interfaces(device_name, vdom=vdom)
+                        target_iface = next((i for i in fresh_ifaces if i['name'] == interface_name), None)
+                        
+                        if target_iface:
+                            # Status Check Logic (api_client'dakinin aynisi)
+                            admin_stat = target_iface.get('status')
+                            if admin_stat is None: admin_stat = target_iface.get('admin-status')
+                            is_now_up = str(admin_stat).lower() in ['1', 'up', 'enable', 'true']
+                            
+                            current_label = "UP" if is_now_up else "DOWN"
+                            
+                            if (target_status == "up" and is_now_up) or (target_status == "down" and not is_now_up):
+                                status_text.success(f"🎯 DOĞRULAMA BAŞARILI: Port şu an fiziksel olarak **{current_label}** durumunda.")
+                            else:
+                                status_text.error(f"⚠️ DOĞRULAMA BAŞARISIZ: İşlem bitti ancak port hala **{current_label}** görünüyor!")
+                        else:
+                            status_text.warning("Doğrulama: Port bilgisi sorgulanamadı.")
+                    except Exception as e:
+                        status_text.error(f"Doğrulama Hatası: {e}")
+                
+                with st.expander("İşlem Detayları (Log)", expanded=True):
+                    st.code(log_text)
+                
             break
         time.sleep(2)
-    time.sleep(1); st.rerun()
+    
+    if st.button("Listeyi Güncelle & Kapat", type="primary"):
+        st.rerun()
 
 def render_fmg_connection():
     st.header("🔗 FortiManager Bağlantısı")

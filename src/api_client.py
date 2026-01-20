@@ -1,4 +1,6 @@
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 import json
 import logging
 
@@ -15,6 +17,20 @@ class FortiManagerAPI:
         self.verify_ssl = verify_ssl
         self.session_id = None
         self.id_counter = 1
+        
+        # --- SESSION & RETRY SETUP ---
+        self.session = requests.Session()
+        
+        # Retry stratejisi: 3 kere dene, her seferinde bekleme suresini artir (1s, 2s, 4s...)
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         
         if not verify_ssl:
             requests.packages.urllib3.disable_warnings()
@@ -34,17 +50,18 @@ class FortiManagerAPI:
             headers["Authorization"] = f"Bearer {self.api_token}"
         
         try:
-            response = requests.post(
+            # Persistent session kullanimi
+            response = self.session.post(
                 self.base_url, 
                 json=payload, 
                 headers=headers,
                 verify=self.verify_ssl,
-                timeout=15 # Timeout artırıldı
+                timeout=20 # Timeout 20sn'ye cikarildi ve Retry mekanizmasi aktif
             )
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            logger.error(f"API Hatası: {e}")
+            logger.error(f"API Bağlantı Hatası: {e}")
             return None
 
     def login(self):
@@ -68,37 +85,37 @@ class FortiManagerAPI:
     def get_devices(self):
         if not self.session_id and not self.api_token: return []
 
-        # 1. Deneme: Root ADOM
+        # 1. Deneme: Genel cihaz listesi (Global - Tum ADOM'lar)
+        # Bu yontem cihazlarin gercek ADOM bilgisini daha dogru doner.
+        print("DEBUG: get_devices -> Trying Global List (/dvmdb/device)...")
+        params_global = [
+            {
+                "url": "/dvmdb/device",
+                "fields": ["name", "ip", "platform_str", "os_ver", "desc", "vdom", "conn_status", "adom"]
+            }
+        ]
+        response_global = self._post("get", params_global)
+        print(f"DEBUG: get_devices (Global) response -> {json.dumps(response_global)}")
+
+        if response_global and 'result' in response_global and response_global['result'][0]['status']['code'] == 0:
+            data = response_global['result'][0].get('data', [])
+            if data:
+                return data
+
+        # 2. Deneme: Root ADOM (Fallback)
+        print("DEBUG: Global list failed/empty. Trying Root ADOM (/dvmdb/adom/root/device)...")
         params = [
             {
                 "url": "/dvmdb/adom/root/device",
-                "fields": ["name", "ip", "platform_str", "os_ver", "desc", "vdom"]
+                "fields": ["name", "ip", "platform_str", "os_ver", "desc", "vdom", "conn_status", "adom"]
             }
         ]
         response = self._post("get", params)
         
-        print(f"DEBUG: get_devices (root) response -> {json.dumps(response)}")
-        
         if response and 'result' in response and response['result'][0]['status']['code'] == 0:
-            data = response['result'][0].get('data', [])
-            if data:
-                return data
-
-        # 2. Deneme: Genel cihaz listesi (ADOM belirtmeden)
-        print("DEBUG: Root ADOM bos veya hatali, genel listeyi deniyorum...")
-        params_global = [
-            {
-                "url": "/dvmdb/device",
-                "fields": ["name", "ip", "platform_str", "os_ver", "desc", "vdom"]
-            }
-        ]
-        response_global = self._post("get", params_global)
-        print(f"DEBUG: get_devices (global) response -> {json.dumps(response_global)}")
-
-        if response_global and 'result' in response_global and response_global['result'][0]['status']['code'] == 0:
-            return response_global['result'][0].get('data', [])
+            return response['result'][0].get('data', [])
             
-        # Eğer ikisi de hata verdiyse None dön ki UI timeout olduğunu anlasın
+        # Eğer ikisi de hata verdiyse None dön
         return None
 
     def get_vdoms(self, device_name):
@@ -302,67 +319,124 @@ class FortiManagerAPI:
             return True, "User Deleted"
         return False, "Delete Failed"
 
-    def _install_config(self, device_name, vdom="root"):
+    def _install_config(self, device_name, vdom="root", adom="root"):
         """
         Cihaz konfigürasyonunu (Device Settings) cihaza yükler (Install).
         Endpoint: /securityconsole/install/device
         """
+        if not adom: adom = "root"
+        
+        # VDOM kisitlamasini kaldirdik. Tum cihaza install yapilacak.
         params = {
-            "adom": "root",
-            "scope": [{"name": device_name, "vdom": vdom}],
-            "flags": ["none"] # "preview" degil, gercek install
+            "adom": adom,
+            "scope": [{"name": device_name}], 
+            "flags": ["none"]
         }
         
-        print(f"DEBUG: Installing Config -> {device_name}")
+        logger.info(f"INSTALLING CONFIG: Device={device_name}, ADOM={adom}")
+        print(f"DEBUG: Executing Install -> {json.dumps(params)}")
+        
         response = self._post("exec", [{"url": "/securityconsole/install/device", "data": params}])
+        print(f"DEBUG: Install Response -> {json.dumps(response)}")
         
         if response and 'result' in response:
             try:
                 code = response['result'][0]['status']['code']
                 if code == 0:
                     task_id = response['result'][0]['data'].get('task')
+                    logger.info(f"Install Task Started: {task_id}")
                     return True, f"Install Started (Task: {task_id})"
                 else:
-                    return False, f"Install Error: {code}"
-            except:
+                    msg = response['result'][0]['status']['message']
+                    logger.error(f"Install Failed: {code} - {msg}")
+                    return False, f"Install Error: {code} - {msg}"
+            except Exception as e:
+                logger.error(f"Install Exception: {e}")
                 pass
         return False, "Install Failed (No Response)"
 
-    def toggle_interface(self, device_name, interface_name, new_status, vdom="root"):
+    def toggle_interface(self, device_name, interface_name, new_status, vdom="root", adom="root"):
+        import time
         if not self.session_id and not self.api_token: return False, "No Session"
         
-        # FMG DB icin Status: 1 (up), 0 (down)
         api_status = 1 if new_status == "up" else 0
         data = {"status": api_status}
         
-        # 1. Deneme: VDOM Path
-        url_vdom = f"/pm/config/device/{device_name}/vdom/{vdom}/system/interface/{interface_name}"
+        if not adom: adom = "root"
         
-        print(f"DEBUG: PM Update Try 1 -> {url_vdom}")
-        res1 = self._post("update", [{"url": url_vdom, "data": data}])
+        # Interface isminde ozel karakter varsa encode et (örn: port1/1)
+        import urllib.parse
+        safe_iface = urllib.parse.quote(interface_name, safe='')
         
+        print(f"DEBUG: Toggling Interface: {interface_name} (Safe: {safe_iface}) -> {new_status}")
+        
+        # Olası yolları tanımla
+        candidate_urls = []
+        
+        # 1. ADOM + VDOM Path
+        candidate_urls.append(f"/pm/config/adom/{adom}/device/{device_name}/vdom/{vdom}/system/interface/{safe_iface}")
+        # 2. Legacy Path
+        candidate_urls.append(f"/pm/config/device/{device_name}/vdom/{vdom}/system/interface/{safe_iface}")
+        # 3. Global Path
+        if vdom == "root":
+            candidate_urls.append(f"/pm/config/device/{device_name}/global/system/interface/{safe_iface}")
+
         db_updated = False
-        if res1 and 'result' in res1 and res1['result'][0]['status']['code'] == 0:
-            db_updated = True
+        valid_path = None
         
-        # 2. Deneme: Global Path (Eger VDOM root ise ve ilk deneme basarisizsa)
-        if not db_updated and vdom == "root":
-            url_global = f"/pm/config/device/{device_name}/global/system/interface/{interface_name}"
-            print(f"DEBUG: PM Update Try 2 -> {url_global}")
-            res2 = self._post("update", [{"url": url_global, "data": data}])
+        for url in candidate_urls:
+            print(f"DEBUG: Checking GET -> {url}")
+            check_res = self._post("get", [{"url": url}])
             
-            if res2 and 'result' in res2 and res2['result'][0]['status']['code'] == 0:
-                db_updated = True
-        
-        # DB Guncellendiyse Install Yap
+            if check_res and 'result' in check_res and check_res['result'][0]['status']['code'] == 0:
+                print(f"DEBUG: Path FOUND. Current Data: {json.dumps(check_res['result'][0].get('data', 'N/A'))}")
+                
+                print(f"DEBUG: Sending UPDATE -> {url} | Data: {data}")
+                update_res = self._post("update", [{"url": url, "data": data}])
+                print(f"DEBUG: Update Result: {json.dumps(update_res)}")
+                
+                if update_res and 'result' in update_res and update_res['result'][0]['status']['code'] == 0:
+                    # RACE CONDITION FIX: Bekle ve Dogrula
+                    time.sleep(1)
+                    
+                    # VERIFICATION: Update basarili dondu ama deger gercekten degisti mi?
+                    print(f"DEBUG: Update OK. Verifying value on -> {url}")
+                    verify_res = self._post("get", [{"url": url}])
+                    
+                    if verify_res and 'result' in verify_res and verify_res['result'][0]['status']['code'] == 0:
+                        curr_data = verify_res['result'][0].get('data', {})
+                        # FMG bazen data'yi liste doner
+                        if isinstance(curr_data, list) and curr_data:
+                            curr_data = curr_data[0]
+                            
+                        curr_status = curr_data.get('status')
+                        target_status = data['status']
+                        
+                        # Karsilastirma (Int/Str uyumlulugu)
+                        if str(curr_status) == str(target_status):
+                            db_updated = True
+                            valid_path = url
+                            print(f"DEBUG: Verification SUCCESS. Status is now {curr_status}")
+                            break
+                        else:
+                            print(f"DEBUG: Verification FAILED. Sent {target_status}, but DB still says {curr_status}")
+                    else:
+                        print("DEBUG: Verification request failed.")
+                else:
+                    print(f"DEBUG: DB Update FAILED on {url}. Err: {json.dumps(update_res)}")
+            else:
+                print(f"DEBUG: Path Not Found ({url})")
+
         if db_updated:
-            install_success, install_msg = self._install_config(device_name, vdom)
+            # RACE CONDITION FIX: Install oncesi bekleme
+            time.sleep(2)
+            install_success, install_msg = self._install_config(device_name, vdom, adom=adom)
             if install_success:
-                return True, f"DB Updated & {install_msg}"
+                return True, f"DB Updated ({valid_path}) & {install_msg}"
             else:
                 return True, f"DB Updated but Install Failed: {install_msg}"
             
-        return False, f"Failed Both Paths. Last Err: {json.dumps(res1)}"
+        return False, f"Interface Path Not Found! Tried {len(candidate_urls)} paths."
     def logout(self):
         if self.api_token:
             self.api_token = None
