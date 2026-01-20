@@ -2,6 +2,11 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
+## Active Tracks
+
+- [x] **Track: Improve FortiManager API reliability by implementing real-time interface monitoring for verification.**
+  *Link: [./tracks/api_reliability_20260120/](./tracks/api_reliability_20260120/)*
+
 ---
 
 ## Archived Tracks
