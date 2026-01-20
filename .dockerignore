@@ -1,0 +1,16 @@
+.git
+.gitignore
+.dockerignore
+tests/
+conductor/
+data/
+*.tar
+*.png
+*.bat
+*.ps1
+__pycache__
+.pytest_cache
+GEMINI.md
+README.md
+Dockerfile
+docker-compose.yml
