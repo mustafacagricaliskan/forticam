@@ -2,6 +2,13 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
+## Active Tracks
+
+- [~] **Track: Increase unit test coverage for core services including AuthService, ConfigService, and FortiManagerAPI.**
+  *Link: [./tracks/expand_unit_tests_20260120/](./tracks/expand_unit_tests_20260120/)*
+
+---
+
 ## Archived Tracks
 
 - [x] **Track: Improve dashboard usability for large device counts (200+) by adding search, filtering, and pagination to the device selection grid.**
