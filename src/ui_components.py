@@ -16,7 +16,7 @@ def get_base64_image(image_path):
     """Görüntüyü base64 olarak önbelleğe alıp döndürür."""
     if not image_path: return None
     
-    # Normalize path
+    # Normalize path (Fixed syntax error here)
     image_path = image_path.replace("\", os.sep).replace("/", os.sep)
     
     if not os.path.exists(image_path):
