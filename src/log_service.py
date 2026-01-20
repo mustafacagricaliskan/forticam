@@ -89,6 +89,36 @@ class LogService:
             print(f"SIEM Send Error: {e}")
 
     @staticmethod
+    def send_test_message(user_name: str, server: str, port: int, protocol: str):
+        """Test amaçlı SIEM logu gönderir (CSV'ye yazmaz)."""
+        from typing import Tuple
+        
+        # Timezone handled in log_action usually, repeated here or we can skip strictly
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        log_entry = {
+            "Timestamp": timestamp,
+            "User": user_name,
+            "Action": "SIEM_TEST",
+            "Device": "SYSTEM",
+            "Details": "Connection Test Message"
+        }
+        
+        # Gecici config
+        temp_config = {
+            "enabled": True,
+            "server": server,
+            "port": port,
+            "protocol": protocol
+        }
+        
+        try:
+            LogService.send_to_siem(log_entry, siem_config=temp_config)
+            return True, "Test logu gönderildi."
+        except Exception as e:
+            return False, f"Gönderim Hatası: {e}"
+
+    @staticmethod
     def log_action(user_name: str, action: str, device: str, details: str):
         """Kullanıcı işlemini loglar, dosyaya yazar ve konsola basar."""
         tz_name = st.session_state.get('user_timezone', 'Europe/Istanbul')

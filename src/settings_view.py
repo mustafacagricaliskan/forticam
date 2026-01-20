@@ -560,9 +560,20 @@ def render_settings():
                 st.error("Lütfen önce sunucu adresini girin.")
             else:
                 from log_service import LogService
-                with st.spinner("SIEM'e test logu gönderiliyor..."):
-                    LogService.log_action(user.username, "SIEM_TEST", "SYSTEM", "SIEM Bağlantı Test Mesajı")
-                    st.toast("Test logu gönderildi. Lütfen SIEM tarafını kontrol edin.", icon="🛡️")
+                with st.spinner(f"SIEM'e ({siem_host}:{siem_port} {siem_proto}) test logu gönderiliyor..."):
+                    # Confige kaydetmeden, formdaki degerlerle test et
+                    success, msg = LogService.send_test_message(
+                        user.username, 
+                        siem_host, 
+                        int(siem_port), 
+                        siem_proto
+                    )
+                    
+                    if success:
+                        st.toast("Test logu gönderildi.", icon="✅")
+                        st.success(f"{msg} (Hedef: {siem_host}:{siem_port})")
+                    else:
+                        st.error(msg)
 
         if col_export.button("📤 Geçmiş Logları Aktar (CSV -> SIEM)", disabled=not can_edit, use_container_width=True, help="Sistemde kayıtlı olan tüm geçmiş logları (CSV) yapılandırılmış SIEM sunucusuna toplu olarak gönderir."):
             from log_service import LogService
