@@ -13,5 +13,5 @@ A secure, role-based management dashboard for FortiManager, designed to simplify
 - **Strict Role-Based Access Control (RBAC):** Implementation of granular permissions to ensure users can only view and modify specific interfaces they are authorized to manage.
 
 ## Key Features
-- **Visual Interface Control:** A streamlined dashboard providing real-time visual confirmation of interface status (Up/Down) paired with intuitive toggle switches for immediate action.
+- **Visual Interface Control:** A modern, visual dashboard featuring glassmorphism-inspired device cards and distinct status indicators (AÇIK/KAPALI) for intuitive port management and real-time operational awareness.
 - **Connection Health Monitoring:** Automatic connectivity checks for FortiManager and LDAP services on startup, with visual status indicators and manual refresh capabilities in the Settings view.
