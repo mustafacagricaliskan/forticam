@@ -125,3 +125,106 @@ def test_get_interfaces_with_adom(mock_api):
     args, kwargs = mock_post.call_args
     request_json = kwargs['json']
     assert "/pm/config/adom/MyAdom/device/FGT-1/vdom/root/system/interface" in request_json['params'][0]['url']
+
+def test_proxy_update_interface(mock_api):
+    api, mock_post = mock_api
+    
+    # Mock proxy success response
+    # FMG Proxy returns a nested structure
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "result": [
+            {
+                "status": {"code": 0},
+                "data": [
+                    {
+                        "response": {
+                            "http_status": 200,
+                            "results": {"status": "success"}
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    mock_post.return_value = mock_response
+    
+    success, msg = api.proxy_update_interface("FGT-1", "lan2", "down")
+    
+    assert success is True
+    assert "Direct Update Success" in msg
+    
+    # Verify payload
+    args, kwargs = mock_post.call_args
+    req = kwargs['json']
+    assert req['params'][0]['url'] == "/sys/proxy/json"
+    assert req['params'][0]['data']['action'] == "put"
+    assert req['params'][0]['data']['resource'] == "/api/v2/cmdb/system/interface/lan2"
+
+def test_get_interfaces_realtime(mock_api):
+    api, mock_post = mock_api
+    
+    # Mock Monitor API response via Proxy
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "result": [
+            {
+                "status": {"code": 0},
+                "data": [
+                    {
+                        "response": {
+                            "results": [
+                                {"name": "port1", "status": "up", "link_status": "up", "ip": "1.1.1.1"},
+                                {"name": "port2", "status": "down", "link_status": "down"}
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    mock_post.return_value = mock_response
+    
+    ifaces = api.get_interfaces_realtime("FGT-1", "root", "root")
+    
+    assert ifaces is not None
+    assert len(ifaces) == 2
+    # Check mapping logic
+    assert ifaces[0]['name'] == "port1"
+    assert ifaces[0]['status'] == 1 # up -> 1
+    assert ifaces[1]['status'] == 0 # down -> 0
+
+def test_toggle_interface_script_mode(mock_api):
+    """Test toggle_interface with use_script=True (which triggers Proxy mode)."""
+    api, mock_post = mock_api
+    
+    # Reuse proxy success response
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "result": [
+            {
+                "status": {"code": 0},
+                "data": [
+                    {
+                        "response": {
+                            "http_status": 200,
+                            "results": {}
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    mock_post.return_value = mock_response
+    
+    success, msg = api.toggle_interface("FGT-1", "lan2", "down", use_script=True)
+    
+    assert success is True
+    # Should call proxy_update_interface internally
+    args, kwargs = mock_post.call_args
+    req = kwargs['json']
+    assert req['params'][0]['url'] == "/sys/proxy/json"
+    assert req['params'][0]['data']['action'] == "put"
