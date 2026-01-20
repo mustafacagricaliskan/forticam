@@ -399,6 +399,47 @@ class FortiManagerAPI:
                 pass
         return False, "Install Failed (No Response)"
 
+    def proxy_update_interface(self, device_name: str, interface_name: str, status: str) -> Tuple[bool, str]:
+        """
+        Device REST API'sini FMG Proxy uzerinden cagirarak interface durumunu gunceller.
+        Target: /api/v2/cmdb/system/interface/{name}
+        Method: PUT
+        """
+        # Encode interface name
+        import urllib.parse
+        safe_iface = urllib.parse.quote(interface_name, safe='')
+        
+        resource = f"/api/v2/cmdb/system/interface/{safe_iface}"
+        
+        payload = {
+            "target": [f"device/{device_name}"],
+            "action": "put",
+            "resource": resource,
+            "payload": {
+                "status": status # "up" or "down"
+            }
+        }
+        
+        print(f"DEBUG: Proxy REST PUT -> {resource} on {device_name}")
+        res = self._post("exec", [{"url": "/sys/proxy/json", "data": payload}])
+        
+        if res and 'result' in res and res['result'][0]['status']['code'] == 0:
+            # Proxy cevabini analiz et
+            proxy_res = res['result'][0].get('data', [])
+            if proxy_res and isinstance(proxy_res, list):
+                device_resp = proxy_res[0].get('response', {})
+                http_code = device_resp.get('http_status')
+                
+                # 200 OK veya bazen 500 donup icerikte success diyebilir (FGT quirk)
+                if http_code == 200:
+                    return True, "Direct Update Success (200 OK)"
+                else:
+                    return False, f"Device Error ({http_code}): {json.dumps(device_resp)}"
+            
+            return True, "Proxy Command Sent (No Detail)"
+            
+        return False, f"Proxy Request Failed: {json.dumps(res)}"
+
     def execute_via_proxy(self, device_name: str, commands: List[str]) -> Tuple[bool, str]:
         """
         Doğrudan cihaz üzerinde CLI komutları çalıştırır (System Proxy).
@@ -486,17 +527,12 @@ class FortiManagerAPI:
         import time
         if not self.session_id and not self.api_token: return False, "No Session"
         
-        # --- SCRIPT MODE ---
+        # --- DIRECT/SCRIPT MODE ---
         if use_script:
-            print(f"DEBUG: Toggling via SCRIPT for {interface_name} -> {new_status}")
-            cli_content = f"""
-config system interface
-  edit "{interface_name}"
-    set status {new_status}
-  next
-end
-"""
-            return self.run_cli_script(device_name, cli_content, adom)
+            print(f"DEBUG: Toggling via PROXY API for {interface_name} -> {new_status}")
+            # Script/Proxy modunda artik dogrudan REST API cagiriyoruz
+            # run_cli_script yerine proxy_update_interface
+            return self.proxy_update_interface(device_name, interface_name, new_status)
 
         # --- DB UPDATE MODE (Standard) ---
         api_status = 1 if new_status == "up" else 0
