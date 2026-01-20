@@ -8,5 +8,5 @@ sys.path.insert(0, os.getcwd())
 print(f"Current working directory: {os.getcwd()}")
 print(f"sys.path: {sys.path}")
 
-# Run pytest
-sys.exit(pytest.main(["tests/test_system_service.py"]))
+# Run pytest for all tests in tests/
+sys.exit(pytest.main(["tests/"]))

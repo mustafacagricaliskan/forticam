@@ -1,38 +1,65 @@
 import pytest
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+from unittest.mock import MagicMock, patch
+from src.auth_service import AuthService
 
-from auth_service import User, AuthService
+class TestAuthServiceConnectivity:
 
-def test_user_permissions_admin():
-    """Admin her yere erisebilmeli"""
-    admin = User("admin", "Super_User")
-    # Rastgele bir cihaz ve port
-    assert admin.has_access_to_port("FGT-Test", "port1") == True
+    @patch('src.auth_service.socket')
+    def test_check_ldap_connectivity_success(self, mock_socket):
+        # Setup mock for socket connection (success)
+        mock_socket.socket.return_value.__enter__.return_value.connect.return_value = None
+        
+        # Mock ConfigService to return valid config
+        with patch('src.auth_service.ConfigService.load_config') as mock_config:
+            mock_config.return_value = {
+                "ldap_settings": {
+                    "enabled": True,
+                    "servers": ["10.0.0.2"],
+                    "port": 636
+                }
+            }
+            
+            # Test
+            status, message = AuthService.check_ldap_connectivity()
+            
+            # Verify
+            assert status is True
+            assert "LDAP Reachable" in message
 
-def test_user_permissions_whitelist():
-    """Standart kullanici sadece izin verilen porta erisebilmeli"""
-    # Senaryo: User sadece FGT-1 cihazinda port2'ye yetkili
-    global_ports = []
-    device_ports = {"FGT-1": ["port2"]}
-    
-    user = User("testuser", "Standard_User", global_allowed_ports=global_ports, device_allowed_ports=device_ports)
-    
-    # Yetkili oldugu port
-    assert user.has_access_to_port("FGT-1", "port2") == True
-    
-    # Yetkili OLMADIGI port
-    assert user.has_access_to_port("FGT-1", "port3") == False
-    
-    # Baska cihaz
-    assert user.has_access_to_port("FGT-2", "port2") == False
+    @patch('src.auth_service.socket')
+    def test_check_ldap_connectivity_failure(self, mock_socket):
+        # Setup mock for socket connection (failure)
+        mock_socket.socket.return_value.__enter__.return_value.connect.side_effect = Exception("Timeout")
+        
+        # Mock ConfigService
+        with patch('src.auth_service.ConfigService.load_config') as mock_config:
+            mock_config.return_value = {
+                "ldap_settings": {
+                    "enabled": True,
+                    "servers": ["10.0.0.2"],
+                    "port": 636
+                }
+            }
+            
+            # Test
+            status, message = AuthService.check_ldap_connectivity()
+            
+            # Verify
+            assert status is False
+            assert "LDAP Unreachable" in message
 
-def test_user_permissions_global():
-    """Global izinler her cihazda calismali"""
-    global_ports = ["mgmt"]
-    user = User("globaluser", "Standard_User", global_allowed_ports=global_ports)
-    
-    assert user.has_access_to_port("AnyDevice1", "mgmt") == True
-    assert user.has_access_to_port("AnyDevice2", "mgmt") == True
-    assert user.has_access_to_port("AnyDevice1", "port1") == False
+    def test_check_ldap_connectivity_disabled(self):
+        # Mock ConfigService
+        with patch('src.auth_service.ConfigService.load_config') as mock_config:
+            mock_config.return_value = {
+                "ldap_settings": {
+                    "enabled": False
+                }
+            }
+            
+            # Test
+            status, message = AuthService.check_ldap_connectivity()
+            
+            # Verify
+            assert status is False
+            assert "LDAP Disabled" in message

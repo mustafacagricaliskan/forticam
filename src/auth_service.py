@@ -3,6 +3,7 @@ import datetime
 import ssl
 import logging
 import uuid
+import socket
 from ldap3 import Server, Connection, ALL, Tls
 from config_service import ConfigService
 
@@ -19,21 +20,11 @@ class User:
     def __init__(self, username, role, user_groups=None):
         self.username = username
         self.role = role
-<<<<<<< HEAD
         self.user_groups = user_groups or [] # LDAP Gruplarini sakla
-=======
-        self.permissions = permissions or {}
-        
-        # Normalize Ports: List for Global, Dict for Device-Specific
-        self.global_allowed_ports = global_allowed_ports if isinstance(global_allowed_ports, list) else []
-        self.device_allowed_ports = device_allowed_ports if isinstance(device_allowed_ports, dict) else {}
-        
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
         self.login_time = datetime.datetime.now()
 
     def has_access_to_port(self, device_name, port_name):
         """
-<<<<<<< HEAD
         Check access dynamically by reloading config.
         """
         # 1. Super User / Admin check (Static)
@@ -69,24 +60,6 @@ class User:
         if port_name in device_allowed.get(device_name, []):
             return True
             
-=======
-        Check if user has access to a specific port on a device.
-        Order: Admin > Global Whitelist > Device Whitelist
-        """
-        # 1. Super User / Admin check
-        if self.username == "admin" or self.role == "Super_User":
-            return True
-            
-        # 2. Global Port Check
-        if port_name in self.global_allowed_ports:
-            return True
-            
-        # 3. Device Specific Port Check
-        device_ports = self.device_allowed_ports.get(device_name, [])
-        if port_name in device_ports:
-            return True
-            
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
         return False
 
 class AuthService:
@@ -174,7 +147,6 @@ class AuthService:
     def login(username, password):
         cfg = ConfigService.load_config()
         
-<<<<<<< HEAD
         # 1. YEREL KULLANICI KONTROLU
         local_accounts = cfg.get("local_accounts", [])
         for acc in local_accounts:
@@ -183,24 +155,6 @@ class AuthService:
                 # Yerel kullanicilar icin statik port listesine gerek yok, dinamik bakilacak
                 st.session_state['current_user'] = User(username, role)
                 return True, "Başarılı"
-=======
-        # 1. LOCAL USER CHECK
-        if username == "admin" and password == "admin":
-            st.session_state['current_user'] = User("admin", "Super_User")
-            return True, "Başarılı"
-            
-        local_accounts = cfg.get("local_accounts", [])
-        # Optimization: Use a generator/next to find user quickly
-        acc = next((a for a in local_accounts if a['user'] == username and a.get('password') == password), None)
-        
-        if acc:
-            role = acc.get('profile', 'Standard_User')
-            g_ports = acc.get("global_allowed_ports", [])
-            d_ports = acc.get("device_allowed_ports", acc.get("allowed_ports", {}))
-            
-            st.session_state['current_user'] = User(username, role, global_allowed_ports=g_ports, device_allowed_ports=d_ports)
-            return True, "Başarılı"
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
 
         # 2. LDAP CHECK
         ldap_cfg = cfg.get("ldap_settings", {})
@@ -282,14 +236,9 @@ class AuthService:
                         group_list_str = ", ".join([g.split(',')[0].replace('CN=', '') for g in user_groups])
                         return False, f"Yetki grubu bulunamadı. AD Gruplarınız: {group_list_str if group_list_str else 'Yok'}"
                     
-<<<<<<< HEAD
                     # Kullaniciyi gruplariyla birlikte olustur
                     st.session_state['current_user'] = User(username, profile_name, user_groups=user_groups)
                     conn.unbind()
-=======
-                    # Create Session
-                    st.session_state['current_user'] = User(username, profile_name, global_allowed_ports=g_ports, device_allowed_ports=d_ports)
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
                     return True, "Başarılı"
                     
             except Exception as e:
@@ -300,7 +249,6 @@ class AuthService:
 
     @staticmethod
     def is_ldap_reachable(server_host, port, timeout=2):
-        import socket
         try:
             server_host = str(server_host).strip()
             for prefix in ["ldaps://", "ldap://"]:
@@ -313,6 +261,30 @@ class AuthService:
             return True
         except:
             return False
+
+    @staticmethod
+    def check_ldap_connectivity():
+        """
+        Checks LDAP connectivity based on configuration.
+        Returns: (bool, str) -> (Success, Message)
+        """
+        try:
+            cfg = ConfigService.load_config()
+            ldap_cfg = cfg.get("ldap_settings", {})
+            
+            if not ldap_cfg.get("enabled"):
+                return False, "LDAP Disabled"
+                
+            servers = ldap_cfg.get("servers", [])
+            port = ldap_cfg.get("port", 636)
+            
+            for server in servers:
+                if AuthService.is_ldap_reachable(server, port):
+                    return True, f"LDAP Reachable ({server})"
+                    
+            return False, "LDAP Unreachable"
+        except Exception as e:
+            return False, f"LDAP Check Error: {e}"
 
     @staticmethod
     def test_connection(server_host, port, use_ssl, username, password):

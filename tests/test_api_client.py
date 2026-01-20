@@ -10,7 +10,8 @@ from api_client import FortiManagerAPI
 @pytest.fixture
 def mock_api():
     """API Client ornegi, requestler mocklanmis."""
-    with patch('api_client.requests.post') as mock_post:
+    # We need to mock requests.Session.post because the client uses a session object
+    with patch('requests.Session.post') as mock_post:
         # Token ile baslat, boylece login() metodu token kontrolune girer
         api = FortiManagerAPI("1.1.1.1", api_token="dummy_token", verify_ssl=False)
         yield api, mock_post
@@ -56,22 +57,40 @@ def test_get_devices(mock_api):
 def test_toggle_interface(mock_api):
     api, mock_post = mock_api
     
-    # 1. Adim: DB Update Basarili Yaniti
+    # Check GET calls first (path discovery), then UPDATE, then VERIFY GET, then INSTALL EXEC
+    # This logic in toggle_interface is complex with multiple calls.
+    
+    # Simplified mock sequence for a successful path found on first try:
+    # 1. GET (Check path) -> Success
+    # 2. UPDATE -> Success
+    # 3. GET (Verify) -> Success with new status
+    # 4. EXEC (Install) -> Success
+    
+    mock_get_resp = MagicMock()
+    mock_get_resp.status_code = 200
+    mock_get_resp.json.return_value = {
+        "result": [{"status": {"code": 0}, "data": {"status": 1}}] # 1 = up
+    }
+    
     mock_update_resp = MagicMock()
     mock_update_resp.status_code = 200
     mock_update_resp.json.return_value = {
         "result": [{"status": {"code": 0}, "data": {}}]
     }
 
-    # 2. Adim: Install Config Basarili Yaniti
     mock_install_resp = MagicMock()
     mock_install_resp.status_code = 200
     mock_install_resp.json.return_value = {
         "result": [{"status": {"code": 0}, "data": {"task": 999}}]
     }
     
-    # Mock side_effect: Sirasiyla response don
-    mock_post.side_effect = [mock_update_resp, mock_install_resp]
+    # Order of calls:
+    # 1. GET (Path 1 check)
+    # 2. UPDATE
+    # 3. GET (Verify)
+    # 4. EXEC (Install)
+    
+    mock_post.side_effect = [mock_get_resp, mock_update_resp, mock_get_resp, mock_install_resp]
     
     success, msg = api.toggle_interface("FGT-1", "port1", "up")
     
