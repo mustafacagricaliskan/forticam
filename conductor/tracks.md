@@ -2,14 +2,10 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-## Active Tracks
+## Archived Tracks
 
 - [x] **Track: Implement direct REST API calls to FortiGate devices via FortiManager Proxy for reliable interface toggling.**
-  *Link: [./tracks/proxy_rest_api_20260120/](./tracks/proxy_rest_api_20260120/)*
-
----
-
-## Archived Tracks
+  *Link: [./archive/proxy_rest_api_20260120/](./archive/proxy_rest_api_20260120/)*
 
 - [x] **Track: Implement direct device command execution via FortiManager Proxy to bypass script creation issues.**
   *Link: [./archive/direct_proxy_exec_20260120/](./archive/direct_proxy_exec_20260120/)*
