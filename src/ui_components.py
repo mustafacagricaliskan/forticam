@@ -17,7 +17,7 @@ def get_base64_image(image_path):
     if not image_path: return None
     
     # Normalize path
-    image_path = image_path.replace("\", os.sep).replace("/", os.sep)
+    image_path = image_path.replace("\\", os.sep).replace("/", os.sep)
     
     if not os.path.exists(image_path):
         # Farklı çalışma dizinleri için bir üst dizini kontrol et
