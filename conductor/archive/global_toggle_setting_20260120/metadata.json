@@ -1,0 +1,8 @@
+{
+  "track_id": "global_toggle_setting_20260120",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-20T18:20:00Z",
+  "updated_at": "2026-01-20T18:20:00Z",
+  "description": "Add a global setting to allow admins to choose between DB Update and Direct Proxy toggle methods for all interfaces."
+}
