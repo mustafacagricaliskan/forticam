@@ -46,27 +46,26 @@ class UI:
         ext = os.path.splitext(image_path)[1].lower().replace(".", "")
         if ext == "jpg": ext = "jpeg"
         
-        # Using f-string for interpolation of python variables. 
-        # Double braces {{ }} are used to escape CSS braces.
-        page_bg_img = f"""
+        # Safe string formatting
+        page_bg_img = """
         <style>
             /* Air-gap optimization: Removed external font import */
             
-            html, body, [class*="css"] {{
+            html, body, [class*="css"] {
                 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                 color: #171717;
-            }}
+            }
 
-            .stApp {{
-                background-image: url("data:image/{ext};base64,{bin_str}") !important;
+            .stApp {
+                background-image: url("data:image/%s;base64,%s") !important;
                 background-size: cover !important;
                 background-position: center center !important;
                 background-repeat: no-repeat !important;
                 background-attachment: fixed !important;
-            }}
+            }
             
             /* Glassmorphism Container for Main App */
-            .block-container {{
+            .block-container {
                 background-color: rgba(255, 255, 255, 0.85);
                 padding: 2.5rem;
                 border-radius: 20px;
@@ -75,21 +74,21 @@ class UI:
                 backdrop-filter: blur(12px);
                 -webkit-backdrop-filter: blur(12px);
                 border: 1px solid rgba(255, 255, 255, 0.4);
-                max-width: 95% !important;
-            }}
+                max-width: 95%% !important;
+            }
             
             /* Inputs */
-            .stTextInput > div > div > input, .stSelectbox > div > div > div {{
+            .stTextInput > div > div > input, .stSelectbox > div > div > div {
                 border-radius: 8px !important;
                 border: 1px solid #e2e8f0 !important;
                 padding: 0.5rem 1rem !important;
-            }}
-            .stTextInput > div > div > input:focus {{
+            }
+            .stTextInput > div > div > input:focus {
                 border-color: #5D5FEF !important;
                 box-shadow: 0 0 0 3px rgba(93, 95, 239, 0.1) !important;
-            }}
+            }
         </style>
-        """
+        """ % (ext, bin_str)
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
     @staticmethod
@@ -202,29 +201,32 @@ class UI:
             logo_html = '<div style="text-align: center; margin-bottom: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="#007bff" stroke="none"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></div>'
 
         # --- LOGIN SPECIFIC CSS ---
-        st.markdown(f"""
+        # Note: Using .format() or f-string with double braces for CSS is tricky.
+        # Ideally split css or use simple string concat.
+        
+        login_style = """
             <style>
                 /* 1. HIDE SIDEBAR & DEFAULT ELEMENTS */
                 [data-testid="stSidebar"], 
                 [data-testid="collapsedControl"],
                 #MainMenu, 
                 footer, 
-                header {{ 
+                header {
                     display: none !important; 
-                }}
+                }
 
                 /* 2. PAGE BACKGROUND */
-                .stApp {{
-                    {bg_css}
-                }}
+                .stApp {
+                    %s
+                }
 
-                /* 3. CARD CONTAINER (Styling .block-container in 'centered' layout) */
-                .block-container {{
+                /* 3. CARD CONTAINER */
+                .block-container {
                     background-color: rgba(255, 255, 255, 0.85);
-                    width: 90% !important; /* Responsive width */
+                    width: 90%% !important; 
                     max-width: 450px !important;
-                    padding: 40px !important; /* Balanced padding */
-                    padding-bottom: 60px !important; /* Extra bottom space */
+                    padding: 40px !important; 
+                    padding-bottom: 60px !important; 
                     margin-top: 8vh !important;
                     margin-left: auto !important;
                     margin-right: auto !important;
@@ -233,82 +235,73 @@ class UI:
                     border: 1px solid rgba(255, 255, 255, 0.6);
                     backdrop-filter: blur(12px);
                     -webkit-backdrop-filter: blur(12px);
-                    box-sizing: border-box !important; /* Prevent width calculation errors */
-                    overflow: hidden !important; /* Clip any side overflow */
-                }}
+                    box-sizing: border-box !important; 
+                    overflow: hidden !important; 
+                }
                 
                 /* Remove default padding */
-                .element-container {{
+                .element-container {
                     margin-bottom: 1rem;
-                }}
+                }
 
                 /* 4. FORM BODY PADDING */
-                [data-testid="stForm"] {{
+                [data-testid="stForm"] {
                     padding: 0 !important;
                     border: none !important;
-                }}
+                }
 
                 /* 5. INPUTS */
-                
-                /* Remove Streamlit's default container styling to prevent double borders */
-                /* Ensure container grows with input and doesn't clip */
-                div[data-baseweb="input"], div[data-baseweb="base-input-container"] {{
+                div[data-baseweb="input"], div[data-baseweb="base-input-container"] {
                     background-color: transparent !important;
                     border: none !important;
                     box-shadow: none !important;
                     height: auto !important;
                     min-height: 54px !important;
                     overflow: visible !important;
-                }}
+                }
 
-                .stTextInput > div > div > input {{
+                .stTextInput > div > div > input {
                     background-color: rgba(255, 255, 255, 0.95) !important;
                     border: 2px solid #cbd5e1 !important;
                     color: #1e293b !important;
                     border-radius: 26px !important;
-                    padding-left: 50px !important; /* Space for icon */
+                    padding-left: 50px !important;
                     height: 54px !important;
                     line-height: normal !important;
                     font-size: 16px !important;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     box-shadow: none !important;
-                    box-sizing: border-box !important; /* Ensure borders are included in height/width */
-                    width: 100% !important; /* Strict width constraint */
-                    max-width: 100% !important;
-                }}
+                    box-sizing: border-box !important;
+                    width: 100%% !important;
+                    max-width: 100%% !important;
+                }
                 
-                .stTextInput > div > div > input:focus {{
+                .stTextInput > div > div > input:focus {
                     border-color: #cbd5e1 !important;
                     background-color: #ffffff !important;
                     box-shadow: none !important;
                     outline: none !important;
-                }}
+                }
 
-                /* Input Icons using aria-label selector */
-                /* Username */
-                input[aria-label="USERNAME"] {{
-                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%2364748b'%3E%3Cpath d='M224 256c70.7 0 128-57.3 128-128S294.7 0 224 0 96 57.3 96 128s57.3 128 128 128zm89.6 32h-16.7c-22.2 10.2-46.9 16-72.9 16s-50.6-5.8-72.9-16h-16.7C60.2 288 0 348.2 0 422.4V464c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-41.6c0-74.2-60.2-134.4-134.4-134.4z'/%3E%3C/svg%3E");
+                /* Input Icons */
+                input[aria-label="USERNAME"] {
+                    background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%%2364748b'%%3E%%3Cpath d='M224 256c70.7 0 128-57.3 128-128S294.7 0 224 0 96 57.3 96 128s57.3 128 128 128zm89.6 32h-16.7c-22.2 10.2-46.9 16-72.9 16s-50.6-5.8-72.9-16h-16.7C60.2 288 0 348.2 0 422.4V464c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-41.6c0-74.2-60.2-134.4-134.4-134.4z"/%%3E%%3C/svg%%3E");
                     background-repeat: no-repeat;
                     background-position: 18px center;
                     background-size: 18px;
-                }}
-                /* Password */
-                input[aria-label="PASSWORD"] {{
-                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%2364748b'%3E%3Cpath d='M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z'/%3E%3C/svg%3E"); 
+                }
+                input[aria-label="PASSWORD"] {
+                    background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%%2364748b'%%3E%%3Cpath d='M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"/%%3E%%3C/svg%%3E"); 
                     background-repeat: no-repeat;
                     background-position: 18px center;
                     background-size: 16px;
-                }}
+                }
 
-                /* Labels */
-                .stTextInput label {{
-                    display: none !important;
-                }}
+                .stTextInput label { display: none !important; }
 
-                /* 6. BUTTON */
-                .stButton > button {{
-                    width: 100% !important;
-                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+                .stButton > button {
+                    width: 100%% !important;
+                    background: linear-gradient(135deg, #3b82f6 0%%, #2563eb 100%%) !important;
                     color: white !important;
                     border-radius: 12px !important;
                     height: 50px !important;
@@ -318,27 +311,25 @@ class UI:
                     margin-top: 10px !important;
                     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
                     transition: all 0.3s ease;
-                }}
-                .stButton > button:hover {{
+                }
+                .stButton > button:hover {
                     transform: translateY(-2px);
                     box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4) !important;
-                }}
+                }
                 
-                /* Error messages */
-                .stAlert {{
+                .stAlert {
                     background-color: rgba(254, 226, 226, 0.9) !important;
                     border: 1px solid #fecaca !important;
                     color: #991b1b !important;
                     border-radius: 8px !important;
-                }}
+                }
 
-                /* Hide 'Press Enter to submit' text */
-                [data-testid="InputInstructions"] {{
-                    display: none !important;
-                }}
+                [data-testid="InputInstructions"] { display: none !important; }
 
             </style>
-        """, unsafe_allow_html=True)
+        """ % bg_css
+        
+        st.markdown(login_style, unsafe_allow_html=True)
 
         # CARD CONTENT
         st.markdown(f"""
