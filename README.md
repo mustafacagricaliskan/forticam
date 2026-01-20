@@ -1,64 +1,6 @@
 # 🛡️ FORTICAM - FortiManager Interface Controller
 
-<<<<<<< HEAD
-**FORTICAM**, FortiManager sistemlerini yönetmek, port durumlarını kontrol etmek ve güvenli erişim sağlamak için geliştirilmiş, kullanıcı dostu bir arayüzdür.
-
-![Login Screen](login_page.png)
-
-## ☁️ OpenShift / Kubernetes Deployment
-
-Bu proje, OpenShift (veya diğer Kubernetes ortamları) üzerinde **rootless** (root olmayan kullanıcı) olarak çalışacak şekilde yapılandırılmıştır.
-
-`Dockerfile`, OpenShift'in rastgele UID atama politikasına (Arbitrary UID Support) uyumludur.
-*   Uygulama dizini `/app` ve alt dizinleri `root` grubuna (GID 0) aittir ve yazma iznine sahiptir.
-*   Container varsayılan olarak `USER 1001` ile çalışır, ancak OpenShift bunu dinamik bir UID ile ezebilir.
-*   `fmg_config.json` gibi çalışma anında oluşturulan dosyalar için gerekli izinler ayarlanmıştır.
-
-**Deployment Örneği (YAML) - Ayarlar Dahil:**
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: forticam
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: forticam
-  template:
-    metadata:
-      labels:
-        app: forticam
-    spec:
-      containers:
-      - name: forticam
-        image: quay.mfa.gov.tr/admin/forti/fortimanager:v1.1.0
-        ports:
-        - containerPort: 8501
-        env:
-        # Uygulama Ayarlari (Environment Variables ile Kalicilik)
-        - name: FMG_IP
-          value: "10.10.10.10" # FortiManager IP
-        - name: FMG_TOKEN
-          value: "S3cretT0ken!" # API Token
-        - name: CONNECTIVITY_HOST
-          value: "mfa.gov.tr"   # Baglanti Testi Hedefi
-        - name: LDAP_ENABLED
-          value: "true"
-        - name: LDAP_SERVER
-          value: "dc01.mfa.gov.tr"
-        - name: LDAP_BASE_DN
-          value: "DC=mfa,DC=gov,DC=tr"
-        - name: STREAMLIT_SERVER_ADDRESS
-          value: "0.0.0.0"
-```
-
-## ⚙️ Yapılandırma
-Uygulama ayarları `config_service.py` ve arayüz üzerinden yönetilebilir. İlk çalıştırıldığında `fmg_config.json` dosyası oluşturulur.
-=======
 **FORTICAM**, FortiManager sistemlerini yönetmek, port durumlarını kontrol etmek ve güvenli erişim sağlamak için geliştirilmiş, kullanıcı dostu bir arayüzdür. Modern tasarımı, rol tabanlı yetkilendirme sistemi ve loglama özellikleri ile ağ yöneticilerinin işini kolaylaştırır.
-
-![Login Screen](login_page.png)
 
 ## 🌟 Özellikler
 
@@ -67,7 +9,7 @@ Uygulama ayarları `config_service.py` ve arayüz üzerinden yönetilebilir. İl
 *   **🔌 Port Yönetimi:** Yetki seviyelerine göre portları açma/kapama (Enable/Disable) imkanı.
 *   **👥 Rol Tabanlı Erişim (RBAC):** Kullanıcı rolleri ve granüler yetkilendirme (Global ve Cihaz bazlı port izinleri).
 *   **📝 Audit Logs:** Yapılan tüm işlemlerin (Kullanıcı, Tarih, İşlem, Cihaz) kayıt altına alınması ve CSV olarak indirilmesi.
-*   **🚀 Docker Desteği:** Konteyner mimarisi ile kolay kurulum ve taşınabilirlik.
+*   **🚀 Docker & OpenShift Desteği:** Konteyner mimarisi ile kolay kurulum ve taşınabilirlik. OpenShift rootless deployment uyumluluğu.
 *   **⚡ Performans:** Önbellekleme (Caching) mekanizması ile hızlı veri erişimi.
 *   **🎨 Modern Arayüz:** Streamlit tabanlı, özelleştirilebilir ve şık kullanıcı arayüzü.
 
@@ -90,7 +32,7 @@ Bu proje Docker kullanılarak kolayca çalıştırılabilir.
 2.  **Uygulamayı Başlatın:**
     Windows kullanıcıları için hazır script:
     ```bash
-    .un_app.bat
+    run_app.bat
     ```
     
     Veya manuel olarak Docker Compose ile:
@@ -101,12 +43,20 @@ Bu proje Docker kullanılarak kolayca çalıştırılabilir.
 3.  **Erişim:**
     Tarayıcınızdan `http://localhost:8501` adresine gidin.
 
+## ☁️ OpenShift / Kubernetes Deployment
+
+Bu proje, OpenShift üzerinde **rootless** (root olmayan kullanıcı) olarak çalışacak şekilde yapılandırılmıştır.
+
+`Dockerfile`, OpenShift'in rastgele UID atama politikasına (Arbitrary UID Support) uyumludur.
+*   Uygulama dizini `/app` ve alt dizinleri `root` grubuna (GID 0) aittir ve yazma iznine sahiptir.
+*   Container varsayılan olarak `USER 1001` ile çalışır.
+
 ## ⚙️ Yapılandırma
 
-Uygulama ayarları `config_service.py` ve arayüz üzerinden yönetilebilir. 
+Uygulama ayarları `Ayarlar` menüsü üzerinden yönetilebilir. 
 
 *   **FMG Bağlantısı:** FortiManager IP adresi ve API Token bilgileri arayüzden girilebilir.
-*   **LDAP Ayarları:** `Ayarlar` menüsünden Active Directory sunucu bilgileri ve grup eşleştirmeleri yapılabilir.
+*   **LDAP Ayarları:** Active Directory sunucu bilgileri ve grup eşleştirmeleri yapılabilir.
 
 ## 📂 Proje Yapısı
 
@@ -114,26 +64,16 @@ Uygulama ayarları `config_service.py` ve arayüz üzerinden yönetilebilir.
 FORTICAM/
 ├── src/                # Kaynak kodlar (Python/Streamlit)
 │   ├── app.py          # Ana uygulama dosyası
+│   ├── api_client.py   # FortiManager API istemcisi
 │   ├── auth_service.py # Kimlik doğrulama servisi
-│   ├── ui_components.py# UI bileşenleri
-│   └── ...
+│   └── ui_components.py# UI bileşenleri
 ├── MFA Logo/           # Logo dosyaları
 ├── MFA Background/     # Arka plan görselleri
 ├── docker-compose.yml  # Docker servis tanımı
 ├── Dockerfile          # Docker imaj tanımı
-├── run_app.bat         # Windows başlatma scripti
 └── requirements.txt    # Python bağımlılıkları
 ```
-
-## 🤝 Katkıda Bulunma
-
-1.  Bu repoyu forklayın.
-2.  Yeni bir feature branch oluşturun (`git checkout -b feature/YeniOzellik`).
-3.  Değişikliklerinizi commitleyin (`git commit -m 'Yeni özellik eklendi'`).
-4.  Branch'inizi pushlayın (`git push origin feature/YeniOzellik`).
-5.  Bir Pull Request oluşturun.
 
 ## 📝 Lisans
 
 Bu proje [MIT](LICENSE) lisansı ile lisanslanmıştır.
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e

@@ -2,24 +2,24 @@
 
 This plan outlines the steps to remove unnecessary files, scripts, and code modules to streamline the project and focus on the Docker/OpenShift deployment model.
 
-## Phase 1: Artifact and Temporary File Cleanup
+## Phase 1: Artifact and Temporary File Cleanup [checkpoint: f446745]
 - [x] Task: Remove root-level temporary and screenshot files.
     - [x] Delete all files matching `.tmp-*`.
     - [x] Delete `22.png`, `login_page.png`, `hatalı_sayfa.png`, and `Ekran görüntüsü 2026-01-14 160829.png`.
 - [x] Task: Remove redundant tar archives.
     - [x] Delete `.tmp-fortimanager_openshift1.tar869838307`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Portable Build Deprecation
-- [ ] Task: Remove portable build directory and assets.
-    - [ ] Delete the `dist_portable/` directory.
-    - [ ] Delete `README_PORTABLE.txt`.
-- [ ] Task: Remove portable build scripts and launchers.
-    - [ ] Delete `build_exe.bat`, `create_portable_package.ps1`.
-    - [ ] Delete `run_portable.py` and `src/run_portable.py` (if duplicate exists).
-- [ ] Task: Update documentation.
-    - [ ] Remove portable build sections from `README.md`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Remove portable build directory and assets.
+    - [x] Delete the `dist_portable/` directory.
+    - [x] Delete `README_PORTABLE.txt`.
+- [x] Task: Remove portable build scripts and launchers.
+    - [x] Delete `build_exe.bat`, `create_portable_package.ps1`.
+    - [x] Delete `run_portable.py` and `src/run_portable.py` (if duplicate exists).
+- [x] Task: Update documentation.
+    - [x] Remove portable build sections from `README.md`.
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Codebase Streamlining
 - [ ] Task: Remove unused code modules.
