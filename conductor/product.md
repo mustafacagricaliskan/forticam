@@ -14,3 +14,4 @@ A secure, role-based management dashboard for FortiManager, designed to simplify
 
 ## Key Features
 - **Visual Interface Control:** A streamlined dashboard providing real-time visual confirmation of interface status (Up/Down) paired with intuitive toggle switches for immediate action.
+- **Connection Health Monitoring:** Automatic connectivity checks for FortiManager and LDAP services on startup, with visual status indicators and manual refresh capabilities in the Settings view.
