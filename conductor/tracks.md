@@ -2,6 +2,13 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
+## Active Tracks
+
+- [x] **Track: Add a global setting to allow admins to choose between DB Update and Direct Proxy toggle methods for all interfaces.**
+  *Link: [./tracks/global_toggle_setting_20260120/](./tracks/global_toggle_setting_20260120/)*
+
+---
+
 ## Archived Tracks
 
 - [x] **Track: Sync the dashboard GUI with real-time device status via FMG Proxy to reflect changes made directly to the device.**
