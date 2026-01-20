@@ -2,6 +2,13 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
+## Active Tracks
+
+- [x] **Track: Sync the dashboard GUI with real-time device status via FMG Proxy to reflect changes made directly to the device.**
+  *Link: [./tracks/gui_realtime_sync_20260120/](./tracks/gui_realtime_sync_20260120/)*
+
+---
+
 ## Archived Tracks
 
 - [x] **Track: Implement direct REST API calls to FortiGate devices via FortiManager Proxy for reliable interface toggling.**
