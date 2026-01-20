@@ -361,7 +361,10 @@ def render_dashboard():
                 
                 if c4.button(btn_lbl, key=btn_key, type=btn_type, use_container_width=True, disabled=not can_edit):
                     with st.spinner("İşleniyor..."):
-                        success, msg = api.toggle_interface(sel_dev, iface['name'], target, vdom=sel_vdom, adom=target_adom)
+                        # Use Script method for 'lan2' (Workaround for connection drop)
+                        use_script_method = (iface['name'] == 'lan2')
+                        success, msg = api.toggle_interface(sel_dev, iface['name'], target, vdom=sel_vdom, adom=target_adom, use_script=use_script_method)
+                        
                         user_name = AuthService.get_current_user().username
                         LogService.log_action(user_name, f"Port {target.upper()}", f"{sel_dev}[{sel_vdom}]", msg)
                         
@@ -373,6 +376,17 @@ def render_dashboard():
                                 # Task ID'yi al ve dogrulama bilgilerini gonder
                                 tid = msg.split("Task:")[1].strip().replace(")", "")
                                 track_task(api, tid, device_name=sel_dev, vdom=sel_vdom, interface_name=iface['name'], target_status=target, adom=target_adom)
+                            elif use_script_method and "Script Started" in msg:
+                                # Script modu icin ozel mesaj
+                                st.success("📜 Script cihaz üzerine başarıyla gönderildi.")
+                                # Script calistiginda task id donebilir veya donmeyebilir
+                                # Eger Task ID donuyorsa track_task cagirabiliriz
+                                if "Task:" in msg:
+                                     tid = msg.split("Task:")[1].strip().replace(")", "")
+                                     track_task(api, tid, device_name=sel_dev, vdom=sel_vdom, interface_name=iface['name'], target_status=target, adom=target_adom)
+                                else:
+                                     time.sleep(2)
+                                     st.rerun()
                             else:
                                 st.toast("Başarılı", icon="✅")
                                 time.sleep(1); st.rerun()

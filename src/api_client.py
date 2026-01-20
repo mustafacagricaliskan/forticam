@@ -399,10 +399,78 @@ class FortiManagerAPI:
                 pass
         return False, "Install Failed (No Response)"
 
-    def toggle_interface(self, device_name: str, interface_name: str, new_status: str, vdom: str = "root", adom: str = "root") -> Tuple[bool, str]:
+    def run_cli_script(self, device_name: str, script_content: str, adom: str = "root") -> Tuple[bool, str]:
+        """
+        Cihaz üzerinde CLI script çalıştırır. (Create -> Execute -> Delete pattern)
+        """
+        import time
+        import uuid
+        
+        script_name = f"tmp_cli_{uuid.uuid4().hex[:8]}"
+        if not adom: adom = "root"
+        
+        # 1. Script Oluştur
+        create_data = {
+            "name": script_name,
+            "type": "cli",
+            "content": script_content,
+            "target": "device_database" # Veya 'remote_device'
+        }
+        create_url = f"/pm/config/adom/{adom}/obj/cli/script"
+        
+        print(f"DEBUG: Creating Script {script_name}...")
+        res_create = self._post("add", [{"url": create_url, "data": create_data}])
+        
+        if not (res_create and 'result' in res_create and res_create['result'][0]['status']['code'] == 0):
+            return False, f"Script Creation Failed: {json.dumps(res_create)}"
+            
+        # 2. Scripti Çalıştır
+        exec_data = {
+            "adom": adom,
+            "scope": [{"name": device_name, "vdom": "root"}],
+            "script": script_name
+        }
+        exec_url = "/securityconsole/install/script"
+        
+        print(f"DEBUG: Executing Script {script_name} on {device_name}...")
+        res_exec = self._post("exec", [{"url": exec_url, "data": exec_data}])
+        
+        exec_success = False
+        exec_msg = "Script Exec Failed"
+        
+        if res_exec and 'result' in res_exec and res_exec['result'][0]['status']['code'] == 0:
+            task_id = res_exec['result'][0]['data'].get('task')
+            exec_success = True
+            exec_msg = f"Script Started (Task: {task_id})"
+        else:
+            exec_msg = f"Script Exec Error: {json.dumps(res_exec)}"
+
+        # 3. Temizlik (Script Tanımını Sil)
+        # Hemen silersek task çalışırken sorun olabilir mi? FMG genelde kopyasını alır.
+        # Yine de garanti olsun diye task basariliysa temizligi sonra yapabiliriz veya simdi.
+        # FMG script objesi referans tutulur. Execute edildikten sonra silmek task'i etkilemez (genelde).
+        print(f"DEBUG: Deleting Script Object {script_name}...")
+        self._post("delete", [{"url": create_url, "data": {"name": script_name}}])
+        
+        return exec_success, exec_msg
+
+    def toggle_interface(self, device_name: str, interface_name: str, new_status: str, vdom: str = "root", adom: str = "root", use_script: bool = False) -> Tuple[bool, str]:
         import time
         if not self.session_id and not self.api_token: return False, "No Session"
         
+        # --- SCRIPT MODE ---
+        if use_script:
+            print(f"DEBUG: Toggling via SCRIPT for {interface_name} -> {new_status}")
+            cli_content = f"""
+config system interface
+  edit "{interface_name}"
+    set status {new_status}
+  next
+end
+"""
+            return self.run_cli_script(device_name, cli_content, adom)
+
+        # --- DB UPDATE MODE (Standard) ---
         api_status = 1 if new_status == "up" else 0
         data = {"status": api_status}
         
