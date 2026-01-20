@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Gerekli dosyalari kopyala (Bosluklu klasorler icin JSON array syntax kullanilmali)
 COPY requirements.txt .
+COPY VERSION .
 COPY src/ ./src/
 COPY ["MFA Logo/", "./MFA Logo/"]
 COPY ["MFA Background/", "./MFA Background/"]

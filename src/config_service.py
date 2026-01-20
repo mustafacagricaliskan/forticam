@@ -29,6 +29,22 @@ class ConfigService:
         return config.get(key, default)
 
     @staticmethod
+    def get_version() -> str:
+        """VERSION dosyasından uygulama sürümünü okur."""
+        try:
+            v_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
+            if os.path.exists(v_file):
+                with open(v_file, 'r') as f:
+                    return f.read().strip()
+            # Docker container icinde base dir farkli olabilir
+            if os.path.exists("VERSION"):
+                with open("VERSION", 'r') as f:
+                    return f.read().strip()
+        except:
+            pass
+        return "1.6.0" # Fallback
+
+    @staticmethod
     def load_config() -> Dict[str, Any]:
         config = {}
         if os.path.exists(CONFIG_FILE):

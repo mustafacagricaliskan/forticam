@@ -168,9 +168,16 @@ def filter_interfaces_for_display(interfaces, user, device_name, show_sub_ifaces
 
 def render_dashboard():
     st.header("Dashboard")
+    
+    # Versiyon Bilgisi
+    app_version = ConfigService.get_version()
+    
     tz = pytz.timezone(st.session_state.user_timezone)
     current_time = datetime.datetime.now(tz).strftime("%H:%M:%S")
-    st.caption(f"🕒 {current_time} ({st.session_state.user_timezone})")
+    
+    c1, c2 = st.columns([1, 1])
+    c1.caption(f"🕒 {current_time} ({st.session_state.user_timezone})")
+    c2.markdown(f"<div style='text-align:right; color:gray; font-size:0.8em;'>v{app_version}</div>", unsafe_allow_html=True)
 
     if not st.session_state.fmg_connected:
         # --- RETRY AUTO CONNECT (LAZY LOAD) ---

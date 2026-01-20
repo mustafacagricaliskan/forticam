@@ -1,27 +1,20 @@
-# 🛡️ FORTICAM - FortiManager Interface Controller
+# 🛡️ FORTICAM - FortiManager Dashboard & Controller (v1.6.0)
 
-**FORTICAM**, FortiManager sistemlerini yönetmek, port durumlarını kontrol etmek ve güvenli erişim sağlamak için geliştirilmiş, kullanıcı dostu bir arayüzdür. Modern tasarımı, rol tabanlı yetkilendirme sistemi ve loglama özellikleri ile ağ yöneticilerinin işini kolaylaştırır.
+**FORTICAM**, FortiManager sistemlerini merkezi olarak yönetmek, port durumlarını kontrol etmek ve güvenli, rol tabanlı erişim sağlamak için geliştirilmiş ölçeklenebilir bir dashboard çözümüdür. Modern tasarımı ve yüksek güvenilirlikli kontrol mekanizmaları ile kurumsal ağ yönetimini basitleştirir.
 
-## 🌟 Özellikler
+## 🌟 Öne Çıkan Özellikler
 
-*   **🛡️ Güvenli Giriş:** Yerel veritabanı ve LDAP (Active Directory) entegrasyonu ile güvenli kimlik doğrulama.
-*   **📊 Dashboard:** Yönetilen cihazların ve VDOM'ların anlık durumunu görüntüleme.
-*   **🔌 Port Yönetimi:** Yetki seviyelerine göre portları açma/kapama (Enable/Disable) imkanı.
-*   **👥 Rol Tabanlı Erişim (RBAC):** Kullanıcı rolleri ve granüler yetkilendirme (Global ve Cihaz bazlı port izinleri).
-*   **📝 Audit Logs:** Yapılan tüm işlemlerin (Kullanıcı, Tarih, İşlem, Cihaz) kayıt altına alınması ve CSV olarak indirilmesi.
-*   **🚀 Docker & OpenShift Desteği:** Konteyner mimarisi ile kolay kurulum ve taşınabilirlik. OpenShift rootless deployment uyumluluğu.
-*   **⚡ Performans:** Önbellekleme (Caching) mekanizması ile hızlı veri erişimi.
-*   **🎨 Modern Arayüz:** Streamlit tabanlı, özelleştirilebilir ve şık kullanıcı arayüzü.
+*   **📈 Ölçeklenebilir Dashboard:** 200+ cihazı destekleyen **Arama (Search)** ve **Sayfalama (Pagination)** özellikli görsel arayüz.
+*   **⚡ Hızlı ve Güvenilir Kontrol:** Standart FMG DB Update yöntemine ek olarak, doğrudan cihaz API'sine erişen **Direct Proxy (REST API)** kontrolü.
+*   **🛡️ Gelişmiş Güvenlik:** `bcrypt` ile şifrelenmiş yerel hesaplar ve kapsamlı LDAP (Active Directory) entegrasyonu.
+*   **👥 Granüler Yetkilendirme (RBAC):** Cihaz ve port bazlı erişim kısıtlamaları, modül bazlı kullanıcı profilleri.
+*   **🔄 Gerçek Zamanlı Senkronizasyon:** Optimistic UI ve Monitor API entegrasyonu ile port değişikliklerinin anlık takibi.
+*   **🛡️ SIEM Entegrasyonu:** Tüm işlemlerin gerçek zamanlı olarak Syslog üzerinden SIEM sistemlerine aktarılması ve test araçları.
+*   **🚀 Konteyner Uyumluluğu:** Docker ve OpenShift (Rootless) ortamları için optimize edilmiş mimari.
 
 ## 🛠️ Kurulum
 
-Bu proje Docker kullanılarak kolayca çalıştırılabilir.
-
-### Gereksinimler
-
-*   Docker Desktop (Windows/Mac/Linux)
-
-### Adım Adım Çalıştırma
+### Docker ile Çalıştırma (Önerilen)
 
 1.  **Repoyu Klonlayın:**
     ```bash
@@ -29,49 +22,41 @@ Bu proje Docker kullanılarak kolayca çalıştırılabilir.
     cd FORTICAM
     ```
 
-2.  **Uygulamayı Başlatın:**
-    Windows kullanıcıları için hazır script:
-    ```bash
-    run_app.bat
-    ```
-    
-    Veya manuel olarak Docker Compose ile:
+2.  **İmajı Oluşturun ve Başlatın:**
     ```bash
     docker-compose up -d --build
     ```
 
 3.  **Erişim:**
-    Tarayıcınızdan `http://localhost:8501` adresine gidin.
+    `http://localhost:8501` adresinden giriş yapabilirsiniz. (Varsayılan: `admin` / `admin`)
 
-## ☁️ OpenShift / Kubernetes Deployment
+## ☁️ OpenShift Deployment
 
-Bu proje, OpenShift üzerinde **rootless** (root olmayan kullanıcı) olarak çalışacak şekilde yapılandırılmıştır.
-
-`Dockerfile`, OpenShift'in rastgele UID atama politikasına (Arbitrary UID Support) uyumludur.
-*   Uygulama dizini `/app` ve alt dizinleri `root` grubuna (GID 0) aittir ve yazma iznine sahiptir.
-*   Container varsayılan olarak `USER 1001` ile çalışır.
+Uygulama, OpenShift'in güvenlik politikalarına (SCC restricted) tam uyumludur:
+- `/app/data` dizini persistence için Volume olarak bağlanabilir.
+- Arbitrary User ID desteği ile root olmayan kullanıcılar tarafından çalıştırılabilir.
 
 ## ⚙️ Yapılandırma
 
-Uygulama ayarları `Ayarlar` menüsü üzerinden yönetilebilir. 
-
-*   **FMG Bağlantısı:** FortiManager IP adresi ve API Token bilgileri arayüzden girilebilir.
-*   **LDAP Ayarları:** Active Directory sunucu bilgileri ve grup eşleştirmeleri yapılabilir.
+Ayarlar paneli üzerinden şunları yönetebilirsiniz:
+- **Port Kontrol Yöntemi:** "Standart" veya "Hızlı (Direct Proxy)" seçimi.
+- **LDAP Kümeleme:** Birden fazla LDAP sunucusu tanımı ve SSL desteği.
+- **Bağlantı Sağlık Kontrolleri:** FMG ve LDAP servis durumlarının anlık izlenimi.
 
 ## 📂 Proje Yapısı
 
 ```
 FORTICAM/
-├── src/                # Kaynak kodlar (Python/Streamlit)
-│   ├── app.py          # Ana uygulama dosyası
-│   ├── api_client.py   # FortiManager API istemcisi
-│   ├── auth_service.py # Kimlik doğrulama servisi
-│   └── ui_components.py# UI bileşenleri
-├── MFA Logo/           # Logo dosyaları
-├── MFA Background/     # Arka plan görselleri
-├── docker-compose.yml  # Docker servis tanımı
-├── Dockerfile          # Docker imaj tanımı
-└── requirements.txt    # Python bağımlılıkları
+├── src/                # Kaynak Kodlar
+│   ├── app.py          # Dashboard ve Navigasyon
+│   ├── api_client.py   # FortiManager API Logic
+│   ├── auth_service.py # Kimlik Doğrulama (Bcrypt/LDAP)
+│   ├── log_service.py  # Audit & SIEM Logging
+│   └── ui_components.py# Glassmorphism UI Tasarımı
+├── data/               # Kalıcı Veritabanı (JSON/CSV)
+├── MFA Logo/           # Branding Varlıkları
+├── Dockerfile          # Container Tanımı
+└── requirements.txt    # Bağımlılıklar
 ```
 
 ## 📝 Lisans
