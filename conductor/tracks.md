@@ -4,7 +4,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
-(No active tracks)
+- [x] **Track: Implement script-based interface toggling as an alternative to DB update for better reliability on management ports.**
+  *Link: [./tracks/script_based_toggle_20260120/](./tracks/script_based_toggle_20260120/)*
 
 ---
 
