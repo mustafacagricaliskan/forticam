@@ -4,8 +4,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
-- [~] **Track: Refactor configuration JSON structure to group FortiManager settings under 'fmg_settings' object for better organization.**
-  *Link: [./tracks/refactor_config_structure_20260120/](./tracks/refactor_config_structure_20260120/)*
+- [~] **Track: Enhance SIEM testing utilities by separating test log sending from production audit logging.**
+  *Link: [./tracks/siem_testing_utils_20260120/](./tracks/siem_testing_utils_20260120/)*
 
 ---
 
