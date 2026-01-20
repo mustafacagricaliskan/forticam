@@ -343,9 +343,14 @@ class UI:
                     font-size: 15px !important;
                     transition: all 0.2s ease-in-out;
                     box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important;
-                    width: 100%% !important;
+                    width: 100% !important;
                 }
                 
+                /* Ensure full width for password visibility container */
+                .stTextInput > div {
+                    width: 100% !important;
+                }
+
                 .stTextInput > div > div > input:focus {
                     border-color: #4f46e5 !important;
                     background-color: #ffffff !important;
@@ -365,18 +370,28 @@ class UI:
                     margin-left: 4px !important;
                 }
 
-                /* Input Icons */
-                input[aria-label="USERNAME"] {
-                    background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%%2364748b'%%3E%%3Cpath d='M224 256c70.7 0 128-57.3 128-128S294.7 0 224 0 96 57.3 96 128s57.3 128 128 128zm89.6 32h-16.7c-22.2 10.2-46.9 16-72.9 16s-50.6-5.8-72.9-16h-16.7C60.2 288 0 348.2 0 422.4V464c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-41.6c0-74.2-60.2-134.4-134.4-134.4z"/%%3E%%3C/svg%%3E");
+                /* Input Icons - Updated to match Turkish labels */
+                input[aria-label="Kullanıcı Adı"] {
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%2364748b'%3E%3Cpath d='M224 256c70.7 0 128-57.3 128-128S294.7 0 224 0 96 57.3 96 128s57.3 128 128 128zm89.6 32h-16.7c-22.2 10.2-46.9 16-72.9 16s-50.6-5.8-72.9-16h-16.7C60.2 288 0 348.2 0 422.4V464c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-41.6c0-74.2-60.2-134.4-134.4-134.4z'/%3E%3C/svg%3E");
                     background-repeat: no-repeat;
                     background-position: 15px center;
                     background-size: 16px;
                 }
-                input[aria-label="PASSWORD"] {
-                    background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%%2364748b'%%3E%%3Cpath d='M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"/%%3E%%3C/svg%%3E"); 
+                input[aria-label="Şifre"] {
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512' fill='%2364748b'%3E%3Cpath d='M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z'/%3E%3C/svg%3E"); 
                     background-repeat: no-repeat;
                     background-position: 15px center;
                     background-size: 14px;
+                }
+
+                /* Hide Streamlit form instructions */
+                [data-testid="InputInstructions"] {
+                    display: none !important;
+                }
+
+                /* Hide Password Visibility Toggle */
+                [data-testid="stTextInputPasswordVisibility"] {
+                    display: none !important;
                 }
 
                 .stButton > button {
@@ -408,7 +423,10 @@ class UI:
                 [data-testid="InputInstructions"] { display: none !important; }
 
             </style>
-        """ % bg_css
+        """
+        
+        # Inject background CSS safely without % formatting conflicts
+        login_style = login_style.replace("%s", bg_css)
         
         st.markdown(login_style, unsafe_allow_html=True)
 
