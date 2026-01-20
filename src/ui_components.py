@@ -16,10 +16,10 @@ def get_base64_image(image_path):
     """Görüntüyü base64 olarak önbelleğe alıp döndürür."""
     if not image_path: return None
     
-    # Normalize path safely
-    # Replace backslash with os.sep
-    if "\" in image_path:
-        image_path = image_path.replace("\", os.sep)
+    # Normalize path safely using chr(92) for backslash to avoid SyntaxError
+    backslash = chr(92)
+    if backslash in image_path:
+        image_path = image_path.replace(backslash, os.sep)
     # Replace forward slash with os.sep
     if "/" in image_path:
         image_path = image_path.replace("/", os.sep)
@@ -122,7 +122,7 @@ class UI:
                 display: none !important;
             }
 
-            [data-testid="stSidebar"] {
+            [data-testid="stSidebar"] { 
                 background-color: #fcfcfc; 
                 border-right: 1px solid #f1f5f9;
             }
