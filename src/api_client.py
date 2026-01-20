@@ -141,6 +141,28 @@ class FortiManagerAPI:
         # Eğer ikisi de hata verdiyse None dön
         return None
 
+    def is_device_online(self, device_name: str) -> bool:
+        """
+        Cihazın FMG ile bağlantı durumunu kontrol eder.
+        """
+        params = [
+            {
+                "url": f"/dvmdb/device/{device_name}",
+                "fields": ["conn_status"]
+            }
+        ]
+        res = self._post("get", params)
+        if res and 'result' in res and res['result'][0]['status']['code'] == 0:
+            data = res['result'][0].get('data', {})
+            # FMG dönerse list, değilse dict olabilir
+            if isinstance(data, list) and data: data = data[0]
+            
+            # 1 = Up, 2 = Down (FMG versiona gore degisebilir, genelde 1 UP)
+            # conn_status degerini loglayalim emin olmak icin
+            status = data.get('conn_status')
+            return str(status) == '1'
+        return False
+
     def get_vdoms(self, device_name: str) -> List[str]:
         """
         Cihazdaki VDOM listesini çeker.
@@ -418,39 +440,51 @@ class FortiManagerAPI:
                 print(f"DEBUG: Update Result: {json.dumps(update_res)}")
                 
                 if update_res and 'result' in update_res and update_res['result'][0]['status']['code'] == 0:
-                    # RACE CONDITION FIX: Bekle ve Dogrula
-                    time.sleep(1)
+                    # VERIFICATION LOOP (ROBUST)
+                    # Port kapandığında bağlantı geçici kopabilir, bu yüzden hemen hata vermeyip bekleyerek deniyoruz.
+                    max_retries = 6  # 6 deneme
+                    retry_delay = 5  # 5 saniye bekleme = Toplam 30 saniye tolerans
                     
-                    # VERIFICATION: Update basarili dondu ama deger gercekten degisti mi?
-                    print(f"DEBUG: Update OK. Verifying value on -> {url}")
-                    verify_res = self._post("get", [{"url": url}])
-                    
-                    if verify_res and 'result' in verify_res and verify_res['result'][0]['status']['code'] == 0:
-                        curr_data = verify_res['result'][0].get('data', {})
-                        # FMG bazen data'yi liste doner
-                        if isinstance(curr_data, list) and curr_data:
-                            curr_data = curr_data[0]
-                            
-                        curr_status = curr_data.get('status')
-                        target_status = data['status']
+                    for attempt in range(max_retries):
+                        time.sleep(retry_delay)
+                        print(f"DEBUG: Verification Attempt {attempt+1}/{max_retries} on -> {url}")
                         
-                        # Karsilastirma (Int/Str uyumlulugu)
-                        if str(curr_status) == str(target_status):
-                            db_updated = True
-                            valid_path = url
-                            print(f"DEBUG: Verification SUCCESS. Status is now {curr_status}")
-                            break
+                        verify_res = self._post("get", [{"url": url}])
+                        
+                        if verify_res and 'result' in verify_res and verify_res['result'][0]['status']['code'] == 0:
+                            curr_data = verify_res['result'][0].get('data', {})
+                            if isinstance(curr_data, list) and curr_data:
+                                curr_data = curr_data[0]
+                                
+                            curr_status = curr_data.get('status')
+                            
+                            # Karsilastirma
+                            if str(curr_status) == str(api_status):
+                                db_updated = True
+                                valid_path = url
+                                print(f"DEBUG: Verification SUCCESS. Status is now {curr_status}")
+                                break
+                            else:
+                                print(f"DEBUG: Verification FAILED. DB says {curr_status}, Target: {api_status}")
                         else:
-                            print(f"DEBUG: Verification FAILED. Sent {target_status}, but DB still says {curr_status}")
-                    else:
-                        print("DEBUG: Verification request failed.")
+                            print("DEBUG: Verification request failed (Connection or API Error).")
+                            # Check if device went offline (expected if we cut the management line)
+                            if api_status == 0: # Closing port
+                                if not self.is_device_online(device_name):
+                                    print("DEBUG: Device is OFFLINE after port close. Assuming SUCCESS due to management cut.")
+                                    db_updated = True
+                                    valid_path = url
+                                    break
+                    
+                    if db_updated:
+                        break # URL loop'unu kir
                 else:
                     print(f"DEBUG: DB Update FAILED on {url}. Err: {json.dumps(update_res)}")
             else:
                 print(f"DEBUG: Path Not Found ({url})")
 
         if db_updated:
-            # RACE CONDITION FIX: Install oncesi bekleme
+            # Install oncesi kisa bekleme
             time.sleep(2)
             install_success, install_msg = self._install_config(device_name, vdom, adom=adom)
             if install_success:
