@@ -6,7 +6,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
-(No active tracks)
+- [~] **Track: Delete unnecessary and unused files and code, specifically focusing on deprecating portable builds and removing obsolete modules.**
+  *Link: [./tracks/project_cleanup_20260120/](./tracks/project_cleanup_20260120/)*
 
 ---
 
