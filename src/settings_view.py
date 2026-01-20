@@ -442,6 +442,29 @@ def render_settings():
                 dns2 = st.text_input("DNS 2", value=cfg.get("secondary_dns", "1.1.1.1"), disabled=not can_edit)
                 
                 st.markdown("---")
+                st.markdown("### 🔌 Port Kontrol Yöntemi")
+                toggle_opts = {
+                    "db_update": "Standart (DB Update + Install)",
+                    "direct_proxy": "Hızlı (Direct Proxy REST API)"
+                }
+                current_method = cfg.get("toggle_method", "db_update")
+                # Find index
+                method_keys = list(toggle_opts.keys())
+                try:
+                    def_idx = method_keys.index(current_method)
+                except:
+                    def_idx = 0
+                    
+                new_method = st.radio(
+                    "Varsayılan Yöntem",
+                    options=method_keys,
+                    format_func=lambda x: toggle_opts[x],
+                    index=def_idx,
+                    help="Standart yöntem FMG veritabanını günceller. Hızlı yöntem doğrudan cihaza komut gönderir (Özellikle lan2 gibi bağlantı koparan portlar için önerilir).",
+                    disabled=not can_edit
+                )
+
+                st.markdown("---")
                 new_test_host = st.text_input("Bağlantı Testi Hedefi (FQDN)", value=test_host, help="Air-gap (Kapalı Devre) ağlarda 'Offline' hatası almamak için buraya iç ağınızdaki erişilebilir bir sunucu adresi (örn: internal.domain.local) girin.", disabled=not can_edit)
                 
                 if st.button("Uygula", disabled=not can_edit, type="primary"):
@@ -449,7 +472,8 @@ def render_settings():
                     disk_cfg.update({
                         "primary_dns": dns1, 
                         "secondary_dns": dns2,
-                        "connectivity_check_host": new_test_host
+                        "connectivity_check_host": new_test_host,
+                        "toggle_method": new_method
                     })
                     ConfigService.save_config(disk_cfg)
                     st.session_state.saved_config = disk_cfg

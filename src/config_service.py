@@ -91,6 +91,10 @@ class ConfigService:
                 "protocol": "UDP"
             }
             
+        # 7. Port Toggle Method (Default: db_update)
+        if "toggle_method" not in config:
+            config["toggle_method"] = "db_update"
+            
         return config
 
     @staticmethod
