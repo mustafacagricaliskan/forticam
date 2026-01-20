@@ -6,7 +6,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
-(No active tracks)
+- [x] **Track: Fix verification failure when toggling lan2 interface status despite successful task execution on FortiManager.**
+  *Link: [./tracks/lan2_verification_fix_20260120/](./tracks/lan2_verification_fix_20260120/)*
 
 ---
 
