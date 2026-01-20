@@ -50,6 +50,12 @@ if 'api' not in st.session_state: st.session_state.api = None
 if 'devices' not in st.session_state: st.session_state.devices = []
 if 'user_timezone' not in st.session_state: st.session_state.user_timezone = "Europe/Istanbul"
 if 'vdoms_cache' not in st.session_state: st.session_state.vdoms_cache = {}
+if 'health_checks' not in st.session_state:
+    st.session_state.health_checks = {
+        "fmg": {"status": "pending", "message": "Not Checked"},
+        "ldap": {"status": "pending", "message": "Not Checked"}
+    }
+
 if 'saved_config' not in st.session_state: 
     st.session_state.saved_config = ConfigService.load_config()
     
@@ -66,6 +72,28 @@ if 'saved_config' not in st.session_state:
         except Exception as e:
             print(f"Startup DNS Error: {e}")
 
+# --- PERFORM STARTUP HEALTH CHECKS ---
+if st.session_state.health_checks["fmg"]["status"] == "pending":
+    cfg = st.session_state.saved_config
+    ip = cfg.get("fmg_ip")
+    token = cfg.get("api_token")
+    if ip and token:
+        try:
+            success, msg = SystemService.check_fmg_connectivity(ip, token)
+            st.session_state.health_checks["fmg"] = {"status": "success" if success else "error", "message": msg}
+        except:
+            st.session_state.health_checks["fmg"] = {"status": "error", "message": "Check Failed"}
+    else:
+        st.session_state.health_checks["fmg"] = {"status": "warning", "message": "FMG Not Configured"}
+
+if st.session_state.health_checks["ldap"]["status"] == "pending":
+    try:
+        success, msg = AuthService.check_ldap_connectivity()
+        status = "success" if success else ("warning" if "Disabled" in msg else "error")
+        st.session_state.health_checks["ldap"] = {"status": status, "message": msg}
+    except:
+        st.session_state.health_checks["ldap"] = {"status": "error", "message": "Check Failed"}
+
 # --- AUTO CONNECT ---
 if not st.session_state.fmg_connected:
     cfg = st.session_state.saved_config
@@ -81,10 +109,6 @@ if not st.session_state.fmg_connected:
                 st.session_state.fmg_ip = ip
         except Exception as e:
             print(f"Auto-connect failed: {e}")
-
-# --- PAGES ---
-
-
 
 # --- CONSTANTS ---
 PHYSICAL_TYPES = ['physical', 'hard-switch', 'fsw', 'root', '0', '4']
@@ -134,7 +158,6 @@ def render_dashboard():
 
     if not st.session_state.fmg_connected:
         # --- RETRY AUTO CONNECT (LAZY LOAD) ---
-        # Standart kullanicilarda bazen session baslangicinda config yuklenmemis olabilir.
         # Dashboard acildiginda baglanti yoksa, tekrar config okuyup baglanmayi dene.
         try:
             cfg = ConfigService.load_config()
@@ -197,19 +220,11 @@ def render_dashboard():
         return
 
     col_dev, col_vdom = st.columns([3, 1])
-<<<<<<< HEAD
-=======
-    device_names = [d['name'] for d in devices_res]
-    
-    with col_dev:
-        sel_dev = st.selectbox("Firewall", device_names)
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
     
     # Cihazlari hazirla: Isim ve Durum Ikonu
     dev_map = {}
-    for d in st.session_state.devices:
+    for d in devices_res:
         # conn_status: 1 (Up), 2 (Down/Sim), 0 (Unknown)
-        # Guvenlik icin str() cevrimi yapiyoruz
         c_stat = str(d.get('conn_status', '0'))
         icon = "🟢" if c_stat == '1' else "🔴"
         label = f"{icon} {d['name']}"
@@ -235,12 +250,7 @@ def render_dashboard():
 
     # Kullanici Yetki Seviyesini Al
     user = AuthService.get_current_user()
-<<<<<<< HEAD
-    # Config loaded
     cfg = ConfigService.load_config()
-=======
-    cfg = st.session_state.saved_config
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
     target_profile = next((p for p in cfg.get("admin_profiles", []) if p['name'] == user.role), None)
     
     # Dashboard yetki seviyesi (Default 0)
@@ -308,19 +318,13 @@ def render_dashboard():
                 
                 if c4.button(btn_lbl, key=btn_key, type=btn_type, use_container_width=True, disabled=not can_edit):
                     with st.spinner("İşleniyor..."):
-<<<<<<< HEAD
                         success, msg = api.toggle_interface(sel_dev, iface['name'], target, vdom=sel_vdom, adom=target_adom)
-                        user = AuthService.get_current_user().username
-                        LogService.log_action(user, f"Port {target.upper()}", f"{sel_dev}[{sel_vdom}]", msg)
-=======
-                        success, msg = api.toggle_interface(sel_dev, iface['name'], target, vdom=sel_vdom)
-                        user_obj = AuthService.get_current_user()
-                        LogService.log_action(user_obj.username, f"Port {target.upper()}", f"{sel_dev}[{sel_vdom}]", msg)
+                        user_name = AuthService.get_current_user().username
+                        LogService.log_action(user_name, f"Port {target.upper()}", f"{sel_dev}[{sel_vdom}]", msg)
                         
                         # Cache temizle
                         get_cached_interfaces.clear()
                         
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
                         if success:
                             if "Task:" in msg:
                                 # Task ID'yi al ve dogrulama bilgilerini gonder
@@ -332,7 +336,6 @@ def render_dashboard():
                         else:
                             st.error(f"İşlem Başarısız! \nDetay: {msg}")
                 
-
 
 def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, target_status=None):
     p_bar = st.progress(0, "Başlatılıyor...")
@@ -405,7 +408,7 @@ def render_fmg_connection():
     st.header("🔗 FortiManager Bağlantısı")
     
     user = AuthService.get_current_user()
-    cfg = st.session_state.saved_config
+    cfg = ConfigService.load_config()
     target_profile = next((p for p in cfg.get("admin_profiles", []) if p['name'] == user.role), None)
     fmg_perm = 2 if user.username == "admin" else (target_profile.get("permissions", {}).get("FMG_Conn", 0) if target_profile else 0)
     can_edit = (fmg_perm == 2)
@@ -433,37 +436,26 @@ def render_fmg_connection():
                     st.error("Bağlantı başarısız.")
 
 def render_logs():
-
     st.header("Audit Logs")
-
-    
-
     # Anti-cache: Her renderda taze veri oku
-
     if st.button("🔄 Logları Yenile"):
-
         st.rerun()
-
         
-
     df = LogService.get_logs()
-
     if not df.empty:
-
         df = df.sort_values(by="Timestamp", ascending=False)
-
         st.dataframe(df, use_container_width=True, hide_index=True)
         st.download_button("Logları İndir (CSV)", df.to_csv(index=False).encode('utf-8'), 'audit_logs.csv', 'text/csv')
     else: st.info("Kayıt yok.")
 
 def render_guide():
     st.header("📚 Kullanım Kılavuzu")
-    st.markdown("""
+    st.markdown(r"""
     ### 1. Dashboard
     **İşlev:** Yönetilen cihazların ve portların durumunu anlık olarak izleyebilir, port açma/kapama işlemleri yapabilirsiniz.
     *   **Firewall & VDOM Seçimi:** İşlem yapmak istediğiniz cihazı ve sanal alanı (VDOM) seçin.
     *   **Port Listesi:** Yetkiniz dahilindeki portlar listelenir.
-    *   **Durum Göstergeleri:**
+    *   **Durum Göstergeleri:** 
         *   :green[● ADMIN: UP] -> Port yönetici tarafından açık.
         *   :red[● ADMIN: DOWN] -> Port yönetici tarafından kapalı.
         *   Link Durumu (Parantez içinde): Fiziksel kablo bağlantısını gösterir.
@@ -477,8 +469,8 @@ def render_guide():
 
     ### 3. Ayarlar
     **İşlev:** Sistem ve kullanıcı yapılandırması. (Sadece Admin yetkisi ile görünür).
-    *   **Kullanıcılar:** Yeni kullanıcı ekleyebilir, şifre sıfırlayabilir ve yetki profili atayabilirsiniz.
-    *   **Port Yetkilendirme:**
+    *   **Kullanıcılar:** Yeni kullanıcı ekleyebilir, şifre sesirlayabilir ve yetki profili atayabilirsiniz.
+    *   **Port Yetkilendirme:** 
         *   **Global Yetkiler:** Kullanıcının tüm cihazlarda görebileceği ortak portlar.
         *   **Cihaz Bazlı Yetkiler:** Belirli bir cihaz için özel port izinleri.
     *   **E-posta Bildirimleri:** İşlem yapıldığında otomatik e-posta gönderimi ayarları.
