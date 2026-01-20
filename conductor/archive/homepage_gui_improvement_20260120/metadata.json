@@ -1,0 +1,8 @@
+{
+  "track_id": "homepage_gui_improvement_20260120",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-20T16:51:00Z",
+  "updated_at": "2026-01-20T16:51:00Z",
+  "description": "Improve the homepage GUI with wide layout, redesigned device cards using glassmorphism, and enhanced status indicators."
+}

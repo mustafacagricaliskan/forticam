@@ -4,12 +4,14 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
-- [x] **Track: Improve the homepage GUI with wide layout, redesigned device cards using glassmorphism, and enhanced status indicators.**
-  *Link: [./tracks/homepage_gui_improvement_20260120/](./tracks/homepage_gui_improvement_20260120/)*
+(No active tracks)
 
 ---
 
 ## Archived Tracks
+
+- [x] **Track: Improve the homepage GUI with wide layout, redesigned device cards using glassmorphism, and enhanced status indicators.**
+  *Link: [./archive/homepage_gui_improvement_20260120/](./archive/homepage_gui_improvement_20260120/)*
 
 - [x] **Track: Improve FortiManager API reliability by implementing real-time interface monitoring for verification.**
   *Link: [./archive/api_reliability_20260120/](./archive/api_reliability_20260120/)*
