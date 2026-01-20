@@ -71,15 +71,55 @@ class UI:
             
             /* Glassmorphism Container for Main App */
             .block-container {
-                background-color: rgba(255, 255, 255, 0.85);
+                background-color: rgba(255, 255, 255, 0.82);
                 padding: 2.5rem;
+                border-radius: 24px;
+                margin-top: 2rem;
+                box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.18);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border: 1px solid rgba(255, 255, 255, 0.45);
+                max-width: 98% !important;
+            }
+            
+            /* Enhanced Device Card Component */
+            .device-card {
+                background: rgba(255, 255, 255, 0.6);
+                border-radius: 16px;
+                padding: 1.5rem;
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+                transition: all 0.3s ease;
+                margin-bottom: 1rem;
+            }
+            .device-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+                background: rgba(255, 255, 255, 0.8);
+                border-color: #5D5FEF;
+            }
+            
+            /* Status Badge Base */
+            .status-badge {
+                padding: 4px 12px;
                 border-radius: 20px;
-                margin-top: 3rem;
-                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
-                border: 1px solid rgba(255, 255, 255, 0.4);
-                max-width: 95%% !important;
+                font-weight: 700;
+                font-size: 0.85rem;
+                display: inline-block;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .status-up {
+                background-color: rgba(34, 197, 94, 0.15);
+                color: #15803d;
+                border: 1px solid rgba(34, 197, 94, 0.3);
+                box-shadow: 0 0 15px rgba(34, 197, 94, 0.1);
+            }
+            .status-down {
+                background-color: rgba(239, 68, 68, 0.15);
+                color: #b91c1c;
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                box-shadow: 0 0 15px rgba(239, 68, 68, 0.1);
             }
             
             /* Inputs */
@@ -99,7 +139,7 @@ class UI:
     @staticmethod
     def init_page():
         st.set_page_config(
-            page_title="FortiManager Controller",
+            page_title="FortiCam - FMG Interface Controller",
             page_icon="🛡️",
             layout="wide",
             initial_sidebar_state="expanded"
@@ -111,33 +151,56 @@ class UI:
             #MainMenu { visibility: hidden; }
             footer { visibility: hidden; }
             
-            /* HEADER DUZELTMESI: Header'i tamamen gizleme, seffaf yap. Yoksa sidebar butonu da gider. */
+            /* HEADER DUZELTMESI */
             header { 
                 visibility: visible !important; 
                 background: transparent !important;
             }
             
-            /* Sadece Deploy butonu ve sag ustteki secenekleri gizle */
             .stAppDeployButton, [data-testid="stHeaderActionElements"] {
                 display: none !important;
             }
 
             [data-testid="stSidebar"] { 
-                background-color: #fcfcfc; 
-                border-right: 1px solid #f1f5f9;
+                background-color: #f8fafc; 
+                border-right: 1px solid #e2e8f0;
+            }
+
+            /* Global Glass Card */
+            div[data-testid="stExpander"] {
+                background: rgba(255, 255, 255, 0.4);
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
             }
 
             /* Button Styles */
             .stButton > button {
-                border-radius: 8px;
+                border-radius: 10px;
                 font-weight: 600;
                 border: none;
-                transition: all 0.2s ease-in-out;
-                padding: 0.6rem 1rem;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                padding: 0.6rem 1.2rem;
             }
             .stButton > button:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.15);
+                box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.2);
+            }
+            
+            /* Primary Button Glow */
+            .stButton > button[kind="primary"] {
+                background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+                box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+            }
+            
+            /* Secondary/Kapat Button */
+            .stButton > button[kind="secondary"] {
+                background: #f1f5f9;
+                color: #475569;
+            }
+            .stButton > button[kind="secondary"]:hover {
+                background: #e2e8f0;
+                color: #1e293b;
             }
             
             /* Sidebar Navigation */

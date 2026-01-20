@@ -219,34 +219,73 @@ def render_dashboard():
         st.info("Yönetilen cihaz bulunamadı.")
         return
 
-    col_dev, col_vdom = st.columns([3, 1])
+    # --- DEVICE SELECTION GRID ---
+    st.markdown("### 🖥️ Yönetilen Cihazlar")
     
-    # Cihazlari hazirla: Isim ve Durum Ikonu
-    dev_map = {}
-    for d in devices_res:
-        # conn_status: 1 (Up), 2 (Down/Sim), 0 (Unknown)
-        c_stat = str(d.get('conn_status', '0'))
-        icon = "🟢" if c_stat == '1' else "🔴"
-        label = f"{icon} {d['name']}"
-        dev_map[label] = d
+    # State management for selected device
+    if 'selected_device_name' not in st.session_state:
+        st.session_state.selected_device_name = devices_res[0]['name'] if devices_res else None
 
-    with col_dev:
-        sel_label = st.selectbox("Firewall", list(dev_map.keys()))
-    
-    # Secimi cihaza cevir
-    target_device = dev_map[sel_label]
+    # Grid Layout: 3 columns
+    cols = st.columns(3)
+    for idx, d in enumerate(devices_res):
+        with cols[idx % 3]:
+            name = d['name']
+            ip = d.get('ip', '-')
+            platform = d.get('platform_str', 'FortiGate')
+            version = d.get('os_ver', '-')
+            conn_status = str(d.get('conn_status', '0'))
+            
+            status_color = "green" if conn_status == '1' else "red"
+            status_text = "BAĞLI" if conn_status == '1' else "KOPUK"
+            
+            # Highlight selected device
+            is_selected = st.session_state.selected_device_name == name
+            border_style = "border: 2px solid #4f46e5;" if is_selected else "border: 1px solid rgba(0,0,0,0.1);"
+            
+            # Icon selection
+            icon = "🔥" # Default
+            if "40F" in platform: icon = "⚡"
+            elif "60F" in platform: icon = "🚀"
+            elif "VM" in platform: icon = "☁️"
+
+            with st.container(border=True):
+                # Custom Card Header with Icon
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-size: 1.5rem;">{icon}</span>
+                        <h4 style="margin: 0; padding: 0;">{name}</h4>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                st.caption(f"📍 {ip}")
+                st.write(f"**Model:** {platform} (v{version})")
+                
+                # Inline Status
+                st.markdown(f":{status_color}[● {status_text}]")
+                
+                if st.button("Seç", key=f"sel_dev_{name}", use_container_width=True, type="primary" if is_selected else "secondary"):
+                    st.session_state.selected_device_name = name
+                    st.rerun()
+
+    # Get active device object
+    target_device = next((d for d in devices_res if d['name'] == st.session_state.selected_device_name), devices_res[0])
     sel_dev = target_device['name']
     
     # Cihaz baglanti ve ADOM durumunu kontrol et
     is_dev_connected = str(target_device.get('conn_status', '0')) == '1'
     target_adom = target_device.get('adom', 'root')
 
+    st.divider()
+    
+    # VDOM ve Arayüzler
     vdoms = ["root"]
     if sel_dev:
         vdoms = get_cached_vdoms(api, sel_dev)
     
+    col_vdom, col_spacer = st.columns([1, 2])
     with col_vdom:
-        sel_vdom = st.selectbox("VDOM", vdoms)
+        sel_vdom = st.selectbox("📂 Aktif VDOM", vdoms)
 
     # Kullanici Yetki Seviyesini Al
     user = AuthService.get_current_user()
@@ -278,42 +317,46 @@ def render_dashboard():
         
     for iface in filtered_interfaces:
             with st.container(border=True):
-                c1, c2, c3, c4 = st.columns([2, 2, 1, 2])
+                c1, c2, c3, c4 = st.columns([2, 2, 2, 1.5], gap="medium")
                 
-                # Isim ve Tip Gosterimi
-                itype = iface.get('type', '?')
+                # Column 1: Name and Type
+                itype = iface.get('type', 'physical')
                 c1.markdown(f"**{iface['name']}**")
-                c1.caption(f"Tip: {itype}")
+                c1.caption(f"🏷️ {str(itype).capitalize()}")
                 
-                ip_val = iface.get('ip', '-')
+                # Column 2: IP Address
+                ip_val = iface.get('ip', '0.0.0.0 0.0.0.0')
                 if isinstance(ip_val, list) and ip_val: ip_val = ip_val[0]
-                c2.write(ip_val)
+                c2.write("🌐 IP Adresi")
+                c2.code(ip_val, language="bash")
                 
-                # Status Check Logic
+                # Column 3: Status Badges
+                # Admin Status
                 admin_stat = iface.get('status')
                 if admin_stat is None: admin_stat = iface.get('admin-status')
-                
                 raw_stat = str(admin_stat if admin_stat is not None else 'down').lower()
                 is_up = raw_stat in ['1', 'up', 'enable', 'true']
                 
-                # Link Status (Physical) - Optional
+                admin_cls = "status-up" if is_up else "status-down"
+                admin_lbl = "AÇIK" if is_up else "KAPALI"
+                
+                # Link Status
                 link_stat = iface.get('link-status')
-                link_info = ""
+                link_html = ""
                 if link_stat is not None:
                     is_link_up = str(link_stat).lower() in ['1', 'up', 'true']
+                    link_cls = "status-up" if is_link_up else "status-down"
                     link_lbl = "LINK: UP" if is_link_up else "LINK: DOWN"
-                    link_col = "green" if is_link_up else "red"
-                    link_info = f"  \n:{link_col}[({link_lbl})]"
+                    link_html = f'<div class="status-badge {link_cls}" style="margin-top:5px;">{link_lbl}</div>'
                 
-                stat_lbl, stat_col = ("ADMIN: UP", "green") if is_up else ("ADMIN: DOWN", "red")
-                c3.markdown(f":{stat_col}[● {stat_lbl}]{link_info}")
+                c3.markdown(f"""
+                    <div class="status-badge {admin_cls}">{admin_lbl}</div>
+                    {link_html}
+                """, unsafe_allow_html=True)
                 
+                # Column 4: Action Button
                 btn_lbl, btn_type, target = ("Kapat", "secondary", "down") if is_up else ("Aç", "primary", "up")
-                
-                # YETKİ KONTROLÜ: Sadece Read-Write (2) ise ve CIHAZ BAGLIYSA butonu aktif et
                 can_edit = (dash_perm == 2) and is_dev_connected
-                
-                # Unique key
                 btn_key = f"{sel_dev}_{sel_vdom}_{iface['name']}"
                 
                 if c4.button(btn_lbl, key=btn_key, type=btn_type, use_container_width=True, disabled=not can_edit):
