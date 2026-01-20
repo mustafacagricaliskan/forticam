@@ -1,7 +1,7 @@
 import os
 import base64
 from OpenSSL import crypto
-from src.api_client import FortiManagerAPI
+from api_client import FortiManagerAPI
 
 class SystemService:
     """Uygulamanın (Docker) sistem ayarlarını yönetir."""
