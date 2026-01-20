@@ -399,6 +399,28 @@ class FortiManagerAPI:
                 pass
         return False, "Install Failed (No Response)"
 
+    def execute_via_proxy(self, device_name: str, commands: List[str]) -> Tuple[bool, str]:
+        """
+        Doğrudan cihaz üzerinde CLI komutları çalıştırır (System Proxy).
+        FMG DB'yi bypass eder.
+        """
+        payload = {
+            "target": [f"device/{device_name}"],
+            "action": "post",
+            "resource": "/api/v2/monitor/system/cli",
+            "payload": {
+                "command": "\n".join(commands)
+            }
+        }
+        
+        print(f"DEBUG: Executing Proxy Command on {device_name}...")
+        res = self._post("exec", [{"url": "/sys/proxy/json", "data": payload}])
+        
+        if res and 'result' in res and res['result'][0]['status']['code'] == 0:
+            return True, "Proxy Command Sent (Direct)"
+            
+        return False, f"Proxy Failed: {json.dumps(res)}"
+
     def run_cli_script(self, device_name: str, script_content: str, adom: str = "root") -> Tuple[bool, str]:
         """
         Cihaz üzerinde CLI script çalıştırır. (Create -> Execute -> Delete pattern)
@@ -426,19 +448,12 @@ class FortiManagerAPI:
         print(f"DEBUG: Creating Script {script_name} at {create_url}...")
         res_create = self._post("add", [{"url": create_url, "data": create_data}])
         
-        # Eger ilk yol basarisiz olursa, alternatif yol (PM Config) dene
+        # Eger script olusturma basarisiz olursa, PROXY FALLBACK
         if not (res_create and 'result' in res_create and res_create['result'][0]['status']['code'] == 0):
-            print(f"DEBUG: First path failed ({json.dumps(res_create)}). Trying fallback path...")
-            # Fallback: PM Config Path
-            fallback_url = f"/pm/config/adom/{adom}/obj/cli/script"
-            # Target PM'de farkli olabilir
-            create_data["target"] = "device_database" 
-            
-            res_create = self._post("add", [{"url": fallback_url, "data": create_data}])
-            create_url = fallback_url # Silme islemi icin guncelle
-        
-        if not (res_create and 'result' in res_create and res_create['result'][0]['status']['code'] == 0):
-            return False, f"Script Creation Failed: {json.dumps(res_create)}"
+            print(f"DEBUG: Script creation failed. Trying DIRECT PROXY EXECUTION...")
+            # Script content'i satir satir bol
+            commands = script_content.strip().split('\n')
+            return self.execute_via_proxy(device_name, commands)
             
         # 2. Scripti Çalıştır
         exec_data = {
@@ -462,9 +477,6 @@ class FortiManagerAPI:
             exec_msg = f"Script Exec Error: {json.dumps(res_exec)}"
 
         # 3. Temizlik (Script Tanımını Sil)
-        # Hemen silersek task çalışırken sorun olabilir mi? FMG genelde kopyasını alır.
-        # Yine de garanti olsun diye task basariliysa temizligi sonra yapabiliriz veya simdi.
-        # FMG script objesi referans tutulur. Execute edildikten sonra silmek task'i etkilemez (genelde).
         print(f"DEBUG: Deleting Script Object {script_name}...")
         self._post("delete", [{"url": create_url, "data": {"name": script_name}}])
         
