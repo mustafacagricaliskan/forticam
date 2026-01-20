@@ -3,6 +3,7 @@
 ## Backend & Core Logic
 - **Python 3.11+:** The primary programming language for application logic, API communication, and data handling.
 - **Requests:** Used for efficient JSON-RPC communication with the FortiManager API.
+- **CLI Scripting:** Leverages FortiManager script execution for reliable control of management interfaces and handling connection-drop scenarios.
 - **LDAP3:** Handles secure authentication against Active Directory/LDAP servers.
 
 ## Frontend & UI
