@@ -609,6 +609,7 @@ def render_fmg_connection():
                     cfg["fmg_settings"]["token"] = token
                     
                     ConfigService.save_config(cfg)
+                    st.session_state.saved_config = cfg # Sync session state
                     st.rerun()
                 else:
                     st.error("Bağlantı başarısız.")

@@ -125,7 +125,27 @@ class ConfigService:
 
     @staticmethod
     def save_config(data: Dict[str, Any]):
-        """Atomic write ile konfigürasyonu kaydeder."""
+        """Atomic write ile konfigürasyonu kaydeder. FMG ayarlarini korur."""
+        
+        # FAIL-SAFE: Eger kaydedilen veride FMG ayarlari eksikse, diskten kurtar
+        if "fmg_settings" not in data or not data["fmg_settings"].get("ip"):
+            try:
+                if os.path.exists(CONFIG_FILE):
+                    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                        current_disk_cfg = json.load(f)
+                    
+                    # Disktekini al
+                    if "fmg_settings" in current_disk_cfg:
+                        data["fmg_settings"] = current_disk_cfg["fmg_settings"]
+                        logger.info("Config Save: Restored missing FMG settings from disk.")
+                    elif "fmg_ip" in current_disk_cfg: # Legacy support
+                        data["fmg_settings"] = {
+                            "ip": current_disk_cfg.get("fmg_ip"),
+                            "token": current_disk_cfg.get("api_token")
+                        }
+            except Exception as e:
+                logger.error(f"Config Merge Error: {e}")
+
         tmp_file = f"{CONFIG_FILE}.tmp"
         try:
             with open(tmp_file, 'w', encoding='utf-8') as f:
