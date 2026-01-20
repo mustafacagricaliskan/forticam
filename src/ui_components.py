@@ -133,7 +133,11 @@ class UI:
                 box-shadow: 0 0 0 3px rgba(93, 95, 239, 0.1) !important;
             }
         </style>
-        """ % (ext, bin_str)
+        """
+        
+        # Inject dynamic values using f-string or replacement to avoid % formatting conflicts with CSS
+        page_bg_img = page_bg_img.replace("data:image/%s;base64,%s", f"data:image/{ext};base64,{bin_str}")
+        
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
     @staticmethod
