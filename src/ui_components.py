@@ -16,8 +16,13 @@ def get_base64_image(image_path):
     """Görüntüyü base64 olarak önbelleğe alıp döndürür."""
     if not image_path: return None
     
-    # Normalize path (Fixed syntax error here)
-    image_path = image_path.replace("\", os.sep).replace("/", os.sep)
+    # Normalize path safely
+    # Replace backslash with os.sep
+    if "\" in image_path:
+        image_path = image_path.replace("\", os.sep)
+    # Replace forward slash with os.sep
+    if "/" in image_path:
+        image_path = image_path.replace("/", os.sep)
     
     if not os.path.exists(image_path):
         # Farklı çalışma dizinleri için bir üst dizini kontrol et
@@ -117,7 +122,7 @@ class UI:
                 display: none !important;
             }
 
-            [data-testid="stSidebar"] { 
+            [data-testid="stSidebar"] {
                 background-color: #fcfcfc; 
                 border-right: 1px solid #f1f5f9;
             }
