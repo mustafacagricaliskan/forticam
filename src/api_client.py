@@ -404,13 +404,15 @@ class FortiManagerAPI:
         Cihazdan dogrudan interface durumlarini ceker (Proxy üzerinden Monitor API).
         Bu veriler FMG DB'den bagimsiz ve anliktir.
         """
+        import time
         resource = "/api/v2/monitor/system/interface"
         payload = {
             "target": [f"device/{device_name}"],
             "action": "get",
             "resource": resource,
             "payload": {
-                "vdom": vdom
+                "vdom": vdom,
+                "_ts": int(time.time()) # Cache-busting: Her sorguda farkli payload
             }
         }
         

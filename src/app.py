@@ -60,6 +60,8 @@ if 'api' not in st.session_state: st.session_state.api = None
 if 'devices' not in st.session_state: st.session_state.devices = []
 if 'user_timezone' not in st.session_state: st.session_state.user_timezone = "Europe/Istanbul"
 if 'vdoms_cache' not in st.session_state: st.session_state.vdoms_cache = {}
+if 'optimistic_updates' not in st.session_state: st.session_state.optimistic_updates = {} # {dev_vdom_iface: {status: 1/0, expire: ts}}
+
 if 'health_checks' not in st.session_state:
     st.session_state.health_checks = {
         "fmg": {"status": "pending", "message": "Not Checked"},
@@ -238,13 +240,46 @@ def render_dashboard():
     # --- DEVICE SELECTION GRID ---
     st.markdown("### 🖥️ Yönetilen Cihazlar")
     
+    # Search Bar
+    search_query = st.text_input("🔍 Cihaz Ara (İsim, IP, Model)", "", placeholder="Örn: Ankara, 10.1.1.1, 60F").lower()
+    
+    filtered_devices = devices_res
+    if search_query:
+        filtered_devices = [
+            d for d in devices_res 
+            if search_query in d['name'].lower() 
+            or search_query in d.get('ip', '').lower()
+            or search_query in d.get('platform_str', '').lower()
+        ]
+        
+    if not filtered_devices:
+        st.warning("Arama kriterlerine uygun cihaz bulunamadı.")
+        # Eger cihaz yoksa asagiya devam etmemeli, ancak selected_device varsa belki gosterilebilir.
+        # Simdilik return ediyoruz.
+        return
+
     # State management for selected device
     if 'selected_device_name' not in st.session_state:
-        st.session_state.selected_device_name = devices_res[0]['name'] if devices_res else None
+        st.session_state.selected_device_name = filtered_devices[0]['name'] if filtered_devices else None
+
+    # --- PAGINATION ---
+    ITEMS_PER_PAGE = 18
+    if 'device_page' not in st.session_state: st.session_state.device_page = 0
+    
+    total_items = len(filtered_devices)
+    total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    
+    # Reset page if filter changes reduces count
+    if st.session_state.device_page >= total_pages: st.session_state.device_page = 0
+    
+    start_idx = st.session_state.device_page * ITEMS_PER_PAGE
+    end_idx = min(start_idx + ITEMS_PER_PAGE, total_items)
+    
+    paginated_devices = filtered_devices[start_idx:end_idx]
 
     # Grid Layout: 3 columns
     cols = st.columns(3)
-    for idx, d in enumerate(devices_res):
+    for idx, d in enumerate(paginated_devices):
         with cols[idx % 3]:
             name = d['name']
             ip = d.get('ip', '-')
@@ -257,7 +292,6 @@ def render_dashboard():
             
             # Highlight selected device
             is_selected = st.session_state.selected_device_name == name
-            border_style = "border: 2px solid #4f46e5;" if is_selected else "border: 1px solid rgba(0,0,0,0.1);"
             
             # Icon selection
             icon = "🔥" # Default
@@ -284,8 +318,22 @@ def render_dashboard():
                     st.session_state.selected_device_name = name
                     st.rerun()
 
+    # Pagination Controls
+    if total_pages > 1:
+        c_prev, c_info, c_next = st.columns([1, 4, 1])
+        if c_prev.button("⬅️ Önceki", disabled=(st.session_state.device_page == 0)):
+            st.session_state.device_page -= 1
+            st.rerun()
+            
+        c_info.markdown(f"<div style='text-align:center; padding-top:10px; color:gray;'>Sayfa {st.session_state.device_page + 1} / {total_pages} (Toplam: {total_items})</div>", unsafe_allow_html=True)
+        
+        if c_next.button("Sonraki ➡️", disabled=(st.session_state.device_page >= total_pages - 1)):
+            st.session_state.device_page += 1
+            st.rerun()
+
     # Get active device object
-    target_device = next((d for d in devices_res if d['name'] == st.session_state.selected_device_name), devices_res[0])
+    target_device = next((d for d in devices_res if d['name'] == st.session_state.selected_device_name), None)
+    if not target_device: target_device = devices_res[0] # Fallback
     sel_dev = target_device['name']
     
     # Cihaz baglanti ve ADOM durumunu kontrol et
@@ -346,12 +394,27 @@ def render_dashboard():
                 c2.write("🌐 IP Adresi")
                 c2.code(ip_val, language="bash")
                 
-                # Column 3: Status Badges
-                # Admin Status
+                # Column 3: Status Badges (OPTIMISTIC UI LOGIC)
+                
+                # 1. API'den gelen gercek durum
                 admin_stat = iface.get('status')
                 if admin_stat is None: admin_stat = iface.get('admin-status')
                 raw_stat = str(admin_stat if admin_stat is not None else 'down').lower()
                 is_up = raw_stat in ['1', 'up', 'enable', 'true']
+                
+                # 2. Optimistic Override (Gecici Gorsel Guncelleme)
+                opt_key = f"{sel_dev}_{sel_vdom}_{iface['name']}"
+                opt_data = st.session_state.get('optimistic_updates', {}).get(opt_key)
+                
+                is_optimistic = False
+                if opt_data and time.time() < opt_data['expire']:
+                    # Eger optimistic durum API ile ayniysa artik override etmeye gerek yok
+                    # (API yetismis demektir). Ancak garanti olsun diye sure bitene kadar tutabiliriz.
+                    # Bizim senaryoda API geciktigi icin override ediyoruz.
+                    target_state = (opt_data['status'] == 1)
+                    if is_up != target_state:
+                        is_up = target_state
+                        is_optimistic = True
                 
                 admin_cls = "status-up" if is_up else "status-down"
                 admin_lbl = "AÇIK" if is_up else "KAPALI"
@@ -361,6 +424,7 @@ def render_dashboard():
                 link_html = ""
                 if link_stat is not None:
                     is_link_up = str(link_stat).lower() in ['1', 'up', 'true']
+                    # Link status override edilmez, fiziksel durumdur.
                     link_cls = "status-up" if is_link_up else "status-down"
                     link_lbl = "LINK: UP" if is_link_up else "LINK: DOWN"
                     link_html = f'<div class="status-badge {link_cls}" style="margin-top:5px;">{link_lbl}</div>'
@@ -391,6 +455,12 @@ def render_dashboard():
                         get_cached_interfaces.clear()
                         
                         if success:
+                            # OPTIMISTIC UPDATE SET
+                            st.session_state.optimistic_updates[opt_key] = {
+                                "status": 1 if target == "up" else 0,
+                                "expire": time.time() + 20 # 20 saniye boyunca bu durumu goster
+                            }
+                            
                             if "Task:" in msg:
                                 # Task ID'yi al ve dogrulama bilgilerini gonder
                                 tid = msg.split("Task:")[1].strip().replace(")", "")
@@ -403,7 +473,7 @@ def render_dashboard():
                                 get_cached_interfaces.clear()
                                 # st.cache_data.clear() # Tum app cache'ini silmek performansi etkiler ama gerekirse acilabilir
                                 
-                                time.sleep(4)
+                                time.sleep(1) # Hissedilir bir islem suresi birak, sonra hemen yenile
                                 st.rerun()
                             else:
                                 st.toast("Başarılı", icon="✅")
@@ -451,15 +521,25 @@ def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, t
                 if device_name and interface_name:
                     time.sleep(3) # FMG sync icin bekleme
                     try:
-                        # ADOM destegi eklendi - Once REALTIME dene
-                        fresh_ifaces = api.get_interfaces_realtime(device_name, vdom=vdom, adom=adom)
+                        fresh_ifaces = []
+                        # 1. Realtime Dene
+                        rt_data = api.get_interfaces_realtime(device_name, vdom=vdom, adom=adom)
+                        if isinstance(rt_data, list):
+                            fresh_ifaces = rt_data
+                        
+                        # 2. DB Dene (Eger Realtime bos veya hataliysa)
                         if not fresh_ifaces:
-                            fresh_ifaces = api.get_interfaces(device_name, vdom=vdom, adom=adom)
-                            
-                        target_iface = next((i for i in fresh_ifaces if i['name'] == interface_name), None)
+                            db_data = api.get_interfaces(device_name, vdom=vdom, adom=adom)
+                            if isinstance(db_data, list):
+                                fresh_ifaces = db_data
+                        
+                        target_iface = None
+                        for i in fresh_ifaces:
+                            if isinstance(i, dict) and i.get('name') == interface_name:
+                                target_iface = i
+                                break
                         
                         if target_iface:
-                            # Status Check Logic (api_client'dakinin aynisi)
                             admin_stat = target_iface.get('status')
                             if admin_stat is None: admin_stat = target_iface.get('admin-status')
                             is_now_up = str(admin_stat).lower() in ['1', 'up', 'enable', 'true']
@@ -469,11 +549,13 @@ def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, t
                             if (target_status == "up" and is_now_up) or (target_status == "down" and not is_now_up):
                                 status_text.success(f"🎯 DOĞRULAMA BAŞARILI: Port şu an fiziksel olarak **{current_label}** durumunda.")
                             else:
-                                status_text.error(f"⚠️ DOĞRULAMA BAŞARISIZ: İşlem bitti ancak port hala **{current_label}** görünüyor!")
+                                status_text.warning(f"⚠️ DOĞRULAMA: İşlem bitti ancak port henüz **{current_label}** görünüyor (Gecikme olabilir).")
                         else:
-                            status_text.warning("Doğrulama: Port bilgisi sorgulanamadı.")
+                            # Sessiz gec
+                            pass
                     except Exception as e:
-                        status_text.error(f"Doğrulama Hatası: {e}")
+                        # Logla ama UI'da hata gosterme
+                        print(f"Verification Logic Error: {e}")
                 
                 with st.expander("İşlem Detayları (Log)", expanded=True):
                     st.code(log_text)

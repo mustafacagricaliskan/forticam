@@ -1,0 +1,8 @@
+{
+  "track_id": "dashboard_scalability_20260120",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-20T19:32:00Z",
+  "updated_at": "2026-01-20T19:32:00Z",
+  "description": "Improve dashboard usability for large device counts (200+) by adding search, filtering, and pagination to the device selection grid."
+}

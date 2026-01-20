@@ -4,6 +4,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Archived Tracks
 
+- [x] **Track: Improve dashboard usability for large device counts (200+) by adding search, filtering, and pagination to the device selection grid.**
+  *Link: [./archive/dashboard_scalability_20260120/](./archive/dashboard_scalability_20260120/)*
+
 - [x] **Track: Enhance SIEM testing utilities by separating test log sending from production audit logging.**
   *Link: [./archive/siem_testing_utils_20260120/](./archive/siem_testing_utils_20260120/)*
 
