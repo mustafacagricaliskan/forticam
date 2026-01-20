@@ -119,6 +119,31 @@ def render_permission_manager(data_obj, unique_key):
 def render_settings():
     st.header("⚙️ Sistem Yapılandırması")
     
+    # --- HEALTH CHECK SECTION ---
+    with st.container(border=True):
+        st.markdown("### 🏥 Uygulama Bağlantı Durumu")
+        h_fmg, h_ldap = st.columns(2)
+        
+        # FMG Status
+        f_health = st.session_state.get("health_checks", {}).get("fmg", {"status": "pending", "message": "N/A"})
+        f_col = "green" if f_health["status"] == "success" else "red" if f_health["status"] == "error" else "orange"
+        h_fmg.markdown(f"**FortiManager:** :{f_col}[{f_health['status'].upper()}]")
+        h_fmg.caption(f_health["message"])
+        
+        # LDAP Status
+        l_health = st.session_state.get("health_checks", {}).get("ldap", {"status": "pending", "message": "N/A"})
+        l_col = "green" if l_health["status"] == "success" else "red" if l_health["status"] == "error" else "orange"
+        h_ldap.markdown(f"**LDAP Server:** :{l_col}[{l_health['status'].upper()}]")
+        h_ldap.caption(l_health["message"])
+        
+        if st.button("🔄 Durumu Yenile", use_container_width=True):
+            with st.spinner("Kontrol ediliyor..."):
+                st.session_state.health_checks = {
+                    "fmg": {"status": "pending", "message": "Refreshing..."},
+                    "ldap": {"status": "pending", "message": "Refreshing..."}
+                }
+                st.rerun()
+
     user = AuthService.get_current_user()
     cfg = st.session_state.saved_config
     profiles = cfg.get("admin_profiles", [])
