@@ -21,7 +21,6 @@ class FortiManagerAPI:
         self.session_id = None
         self.id_counter = 1
         
-<<<<<<< HEAD
         # --- SESSION & RETRY SETUP ---
         self.session = requests.Session()
         
@@ -36,10 +35,6 @@ class FortiManagerAPI:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
         
-=======
-        # Use requests.Session for connection pooling
-        self.session = requests.Session()
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
         if not verify_ssl:
             requests.packages.urllib3.disable_warnings()
             self.session.verify = False
@@ -67,32 +62,18 @@ class FortiManagerAPI:
             headers["Authorization"] = f"Bearer {self.api_token}"
         
         try:
-<<<<<<< HEAD
             # Persistent session kullanimi
-=======
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
             response = self.session.post(
                 self.base_url, 
                 json=payload, 
                 headers=headers,
-<<<<<<< HEAD
                 verify=self.verify_ssl,
                 timeout=20 # Timeout 20sn'ye cikarildi ve Retry mekanizmasi aktif
-=======
-                timeout=self.timeout
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
             )
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-<<<<<<< HEAD
             logger.error(f"API Bağlantı Hatası: {e}")
-=======
-            logger.error(f"API Connection Error: {e}")
-            return None
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON response from FMG")
->>>>>>> 319bca179de9f662d0468990c36635055a14ec1e
             return None
 
     def login(self) -> bool:
@@ -477,5 +458,3 @@ class FortiManagerAPI:
             params = [{"url": "/sys/logout"}]
             self._post("exec", params)
             self.session_id = None
-
-

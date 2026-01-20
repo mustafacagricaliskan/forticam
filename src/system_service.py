@@ -1,9 +1,23 @@
 import os
 import base64
 from OpenSSL import crypto
+from src.api_client import FortiManagerAPI
 
 class SystemService:
     """Uygulamanın (Docker) sistem ayarlarını yönetir."""
+
+    @staticmethod
+    def check_fmg_connectivity(fmg_ip, api_token):
+        """FortiManager baglantisini kontrol eder."""
+        try:
+            # Gecici bir API client olustur
+            fmg = FortiManagerAPI(fmg_ip=fmg_ip, api_token=api_token, verify_ssl=False, timeout=5)
+            if fmg.login():
+                return True, "Connection Successful."
+            else:
+                return False, "Connection Failed."
+        except Exception as e:
+            return False, f"Connection Error: {str(e)}"
 
     @staticmethod
     def check_dns_status(test_host="mfa.gov.tr"):
