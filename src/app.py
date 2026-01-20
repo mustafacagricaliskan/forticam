@@ -35,10 +35,20 @@ def get_cached_vdoms(_api, device_name):
     return _api.get_vdoms(device_name)
 
 @st.cache_data(ttl=10, show_spinner=False)
-def get_cached_interfaces(_api, device_name, vdom):
-    """Caches interface list for 10 seconds."""
+def get_cached_interfaces(_api, device_name, vdom, adom="root"):
+    """Caches interface list for 10 seconds. Tries Real-time first."""
     if not _api: return []
-    return _api.get_interfaces(device_name, vdom=vdom)
+    
+    # 1. Try Real-time (Direct from Device via Proxy)
+    try:
+        realtime_data = _api.get_interfaces_realtime(device_name, vdom=vdom, adom=adom)
+        if realtime_data:
+            return realtime_data
+    except Exception as e:
+        print(f"Realtime Fetch Error: {e}")
+        
+    # 2. Fallback to FMG DB
+    return _api.get_interfaces(device_name, vdom=vdom, adom=adom)
 
 # --- INITIALIZATION ---
 UI.init_page()
@@ -304,7 +314,7 @@ def render_dashboard():
     # Filtreleme Secenegi
     show_sub_ifaces = st.sidebar.checkbox("Sanal ve Alt Arayüzleri Göster (VLAN vb.)", value=False)
     
-    raw_interfaces = get_cached_interfaces(api, sel_dev, sel_vdom)
+    raw_interfaces = get_cached_interfaces(api, sel_dev, sel_vdom, target_adom)
     
     # Clean Code: Logic helper fonksiyonuna tasindi
     filtered_interfaces = filter_interfaces_for_display(raw_interfaces, user, sel_dev, show_sub_ifaces)
@@ -432,8 +442,11 @@ def track_task(api, task_id, device_name=None, vdom=None, interface_name=None, t
                 if device_name and interface_name:
                     time.sleep(3) # FMG sync icin bekleme
                     try:
-                        # ADOM destegi eklendi
-                        fresh_ifaces = api.get_interfaces(device_name, vdom=vdom, adom=adom)
+                        # ADOM destegi eklendi - Once REALTIME dene
+                        fresh_ifaces = api.get_interfaces_realtime(device_name, vdom=vdom, adom=adom)
+                        if not fresh_ifaces:
+                            fresh_ifaces = api.get_interfaces(device_name, vdom=vdom, adom=adom)
+                            
                         target_iface = next((i for i in fresh_ifaces if i['name'] == interface_name), None)
                         
                         if target_iface:

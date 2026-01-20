@@ -399,6 +399,61 @@ class FortiManagerAPI:
                 pass
         return False, "Install Failed (No Response)"
 
+    def get_interfaces_realtime(self, device_name: str, vdom: str = "root", adom: str = "root") -> Optional[List[Dict]]:
+        """
+        Cihazdan dogrudan interface durumlarini ceker (Proxy üzerinden Monitor API).
+        Bu veriler FMG DB'den bagimsiz ve anliktir.
+        """
+        resource = "/api/v2/monitor/system/interface"
+        payload = {
+            "target": [f"device/{device_name}"],
+            "action": "get",
+            "resource": resource,
+            "payload": {
+                "vdom": vdom
+            }
+        }
+        
+        print(f"DEBUG: Fetching Real-time Interfaces for {device_name}...")
+        res = self._post("exec", [{"url": "/sys/proxy/json", "data": payload}])
+        
+        if res and 'result' in res and res['result'][0]['status']['code'] == 0:
+            proxy_res = res['result'][0].get('data', [])
+            if proxy_res and isinstance(proxy_res, list):
+                response_obj = proxy_res[0].get('response', {})
+                results = response_obj.get('results', [])
+                
+                # Mapping: Monitor API -> App Format
+                mapped_interfaces = []
+                for item in results:
+                    # Monitor API keyleri farkli olabilir.
+                    # App'in bekledigi format: name, status (1/0), type, ip, link-status
+                    
+                    name = item.get('name')
+                    # Monitor status: "up"/"down". Config status: 1/0
+                    m_status = item.get('status', 'down') 
+                    c_status = 1 if str(m_status).lower() == 'up' else 0
+                    
+                    m_link = item.get('link_status', 'down') # veya 'link'
+                    
+                    # IP bazen dict, bazen str olabilir
+                    # Monitor API'de ip genellikle 'ip' key'inde doner
+                    
+                    mapped_interfaces.append({
+                        "name": name,
+                        "status": c_status, # Admin Status
+                        "type": item.get('type', 'physical'),
+                        "ip": [item.get('ip')] if item.get('ip') else [],
+                        "link-status": 1 if str(m_link).lower() == 'up' else 0,
+                        "vdom": vdom
+                    })
+                
+                if mapped_interfaces:
+                    return mapped_interfaces
+
+        print("DEBUG: Real-time fetch failed or returned empty.")
+        return None
+
     def proxy_update_interface(self, device_name: str, interface_name: str, status: str) -> Tuple[bool, str]:
         """
         Device REST API'sini FMG Proxy uzerinden cagirarak interface durumunu gunceller.
