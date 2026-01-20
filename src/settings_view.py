@@ -228,10 +228,9 @@ def render_settings():
             ConfigService.save_config(cfg)
             st.rerun()
 
-    tab_auth, tab_sys, tab_email, tab_siem = st.tabs([
+    tab_auth, tab_sys, tab_siem = st.tabs([
         "🔐 Kimlik Doğrulama & Yetkilendirme", 
         "🛠️ Sistem Servisleri (DNS/SSL)",
-        "📧 E-posta Bildirimleri",
         "🛡️ SIEM Ayarları"
     ])
     
@@ -477,101 +476,6 @@ def render_settings():
                         b64 = base64.b64encode(upl.getvalue()).decode('utf-8')
                         s, m = SystemService.apply_pfx_certificate(b64, pws)
                         st.success(m) if s else st.error(m)
-
-    # --- TAB 3: EMAIL ---
-    with tab_email:
-        st.header("📧 E-posta Bildirim Ayarları")
-        st.caption("Operatör işlemleri veya kritik durumlarda otomatik e-posta gönderimi için yapılandırma.")
-        
-        email_cfg = cfg.get("email_settings", {})
-        
-        # 1. Genel Durum
-        is_enabled = st.toggle("E-posta Bildirimlerini Aktif Et", value=email_cfg.get("enabled", False), disabled=not can_edit)
-        
-        st.divider()
-        
-        c_smtp, c_receiver = st.columns([1, 1], gap="large")
-        
-        with c_smtp:
-            with st.container(border=True):
-                st.subheader("📤 Gönderici (SMTP) Ayarları")
-                
-                smtp_server = st.text_input("SMTP Sunucusu", value=email_cfg.get("smtp_server", ""), placeholder="smtp.office365.com", disabled=not can_edit)
-                smtp_port = st.number_input("SMTP Portu", value=email_cfg.get("smtp_port", 587), step=1, disabled=not can_edit)
-                sender_email = st.text_input("Gönderici E-posta", value=email_cfg.get("sender_email", ""), placeholder="noreply@domain.com", disabled=not can_edit)
-                sender_password = st.text_input("Gönderici Şifresi / App Password", value=email_cfg.get("sender_password", ""), type="password", disabled=not can_edit)
-        
-        with c_receiver:
-            with st.container(border=True):
-                st.subheader("📩 Alıcı Listesi")
-                st.caption("Bildirimlerin gönderileceği e-posta adresleri.")
-                
-                # Alıcıları yönetmek için basit bir liste arayüzü
-                receivers = email_cfg.get("receiver_emails", [])
-                
-                # Data Editor ile düzenleme
-                rec_df = pd.DataFrame({"E-posta": receivers})
-                edited_df = st.data_editor(rec_df, num_rows="dynamic", use_container_width=True, disabled=not can_edit, key="email_receivers_editor")
-                
-                current_receivers = [row["E-posta"] for index, row in edited_df.iterrows() if row["E-posta"]]
-
-        st.divider()
-        
-        c_save, c_test = st.columns([1, 4])
-        
-        if c_save.button("💾 Ayarları Kaydet", type="primary", disabled=not can_edit, key="save_email_settings"):
-            disk_cfg = ConfigService.load_config()
-            # Update specific section
-            disk_cfg["email_settings"] = {
-                "enabled": is_enabled,
-                "smtp_server": smtp_server,
-                "smtp_port": smtp_port,
-                "sender_email": sender_email,
-                "sender_password": sender_password,
-                "receiver_emails": current_receivers
-            }
-            ConfigService.save_config(disk_cfg)
-            st.session_state.saved_config = disk_cfg
-            st.success("E-posta ayarları başarıyla kaydedildi!")
-            time.sleep(1)
-            st.rerun()
-
-        if c_test.button("🧪 Test E-postası Gönder", disabled=not can_edit, key="test_email_send"):
-            # Geçici ayarlarla test etme imkanı (henüz kaydetmemiş olabilir)
-            temp_cfg = {
-                "enabled": True, # Test için zorla aç
-                "smtp_server": smtp_server,
-                "smtp_port": smtp_port,
-                "sender_email": sender_email,
-                "sender_password": sender_password,
-                "receiver_emails": current_receivers
-            }
-            
-            # EmailService'i import etmek gerekebilir, fonksiyon başında değilse.
-            # Ancak settings_view modül scope'unda importlar var mı kontrol edelim.
-            # Yoksa import eklemeliyiz. Fonksiyon içine eklemek güvenli.
-            from email_service import EmailService
-            
-            # Geçici config ile test için ConfigService'i mock'lamak zor olabilir.
-            # EmailService doğrudan parametre alsa daha iyi olurdu ama ConfigService'den okuyor.
-            # Çözüm: EmailService.send_notification'ı güncellemek yerine, 
-            # test mantığını burada manuel yapabiliriz veya ConfigService'e geçici yazıp geri alabiliriz.
-            # En temiz: EmailService'e parametre geçebilme yeteneği eklemek.
-            # Şimdilik mevcut config üzerinden (önce kaydet uyarısı verelim) ya da manuel smtplib kullanalım.
-            
-            # Kullanıcıya önce kaydetmesini söylemek en basiti.
-            if cfg.get("email_settings") != temp_cfg:
-                 st.warning("⚠️ Lütfen önce ayarları kaydedin.")
-            else:
-                with st.spinner("Test e-postası gönderiliyor..."):
-                    success, msg = EmailService.send_notification(
-                        subject="[TEST] FortiManager Controller Bildirimi", 
-                        message_body="Bu bir test e-postasıdır. Ayarlarınız doğru çalışıyor."
-                    )
-                    if success:
-                        st.success(f"Başarılı: {msg}")
-                    else:
-                        st.error(f"Hata: {msg}")
 
     # --- TAB 4: SIEM ---
     with tab_siem:

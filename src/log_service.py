@@ -7,7 +7,6 @@ import socket
 import json
 import streamlit as st
 import pandas as pd
-from email_service import EmailService
 from config_service import ConfigService
 
 # Data directory for OpenShift persistence
@@ -127,24 +126,6 @@ class LogService:
                 
             # 3. SIEM GÖNDERİMİ
             LogService.send_to_siem(log_entry)
-
-            # --- E-posta Bildirimi ---
-            # Sadece 'operator' kullanıcısı veya kritik işlemler için filtre eklenebilir.
-            # Şimdilik tüm loglanan işlemler için gönderiyoruz.
-            try:
-                subject = f"⚠️ FortiManager İşlem Bildirimi: {action}"
-                body = (
-                    f"Bir işlem gerçekleştirildi.\n\n"
-                    f"Zaman: {timestamp}\n"
-                    f"Kullanıcı: {user_name}\n"
-                    f"İşlem: {action}\n"
-                    f"Cihaz: {device}\n"
-                    f"Detaylar: {details}\n\n"
-                    f"Bu mesaj FortiManager Controller uygulamasından otomatik olarak gönderilmiştir."
-                )
-                EmailService.send_notification(subject, body)
-            except Exception as email_err:
-                print(f"Email Notification Error: {email_err}")
 
         except Exception as e:
             print(f"Log Error: {e}")

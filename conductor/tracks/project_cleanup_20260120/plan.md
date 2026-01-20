@@ -10,7 +10,7 @@ This plan outlines the steps to remove unnecessary files, scripts, and code modu
     - [x] Delete `.tmp-fortimanager_openshift1.tar869838307`.
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
-## Phase 2: Portable Build Deprecation
+## Phase 2: Portable Build Deprecation [checkpoint: 91a7e43]
 - [x] Task: Remove portable build directory and assets.
     - [x] Delete the `dist_portable/` directory.
     - [x] Delete `README_PORTABLE.txt`.
@@ -22,12 +22,12 @@ This plan outlines the steps to remove unnecessary files, scripts, and code modu
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Codebase Streamlining
-- [ ] Task: Remove unused code modules.
-    - [ ] Delete `src/email_service.py`.
-- [ ] Task: Cleanup dependencies and imports.
-    - [ ] Search for and remove any imports of `email_service` in `src/app.py` or other files.
-    - [ ] Verify `requirements.txt` doesn't contain packages solely used by removed modules (if identifiable).
-- [ ] Task: Final Verification.
-    - [ ] Run `python run_tests.py` to ensure no regressions.
-    - [ ] Build Docker image to ensure the environment is still valid.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Remove unused code modules.
+    - [x] Delete `src/email_service.py`.
+- [x] Task: Cleanup dependencies and imports.
+    - [x] Search for and remove any imports of `email_service` in `src/app.py` or other files.
+    - [x] Verify `requirements.txt` doesn't contain packages solely used by removed modules (if identifiable).
+- [x] Task: Final Verification.
+    - [x] Run `python run_tests.py` to ensure no regressions.
+    - [x] Build Docker image to ensure the environment is still valid.
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
