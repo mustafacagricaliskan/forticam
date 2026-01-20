@@ -17,7 +17,7 @@ def get_base64_image(image_path):
     if not image_path: return None
     
     # Normalize path
-    image_path = image_path.replace("\\", os.sep).replace("/", os.sep)
+    image_path = image_path.replace("\", os.sep).replace("/", os.sep)
     
     if not os.path.exists(image_path):
         # Farklı çalışma dizinleri için bir üst dizini kontrol et
@@ -46,25 +46,27 @@ class UI:
         ext = os.path.splitext(image_path)[1].lower().replace(".", "")
         if ext == "jpg": ext = "jpeg"
         
+        # Using f-string for interpolation of python variables. 
+        # Double braces {{ }} are used to escape CSS braces.
         page_bg_img = f"""
         <style>
             /* Air-gap optimization: Removed external font import */
             
-            html, body, [class*="css"] {
+            html, body, [class*="css"] {{
                 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                 color: #171717;
-            }
+            }}
 
-            .stApp {
+            .stApp {{
                 background-image: url("data:image/{ext};base64,{bin_str}") !important;
                 background-size: cover !important;
                 background-position: center center !important;
                 background-repeat: no-repeat !important;
                 background-attachment: fixed !important;
-            }
+            }}
             
             /* Glassmorphism Container for Main App */
-            .block-container {
+            .block-container {{
                 background-color: rgba(255, 255, 255, 0.85);
                 padding: 2.5rem;
                 border-radius: 20px;
@@ -74,61 +76,20 @@ class UI:
                 -webkit-backdrop-filter: blur(12px);
                 border: 1px solid rgba(255, 255, 255, 0.4);
                 max-width: 95% !important;
-            }
+            }}
             
             /* Inputs */
-            .stTextInput > div > div > input, .stSelectbox > div > div > div {
+            .stTextInput > div > div > input, .stSelectbox > div > div > div {{
                 border-radius: 8px !important;
                 border: 1px solid #e2e8f0 !important;
                 padding: 0.5rem 1rem !important;
-            }
-            .stTextInput > div > div > input:focus {
+            }}
+            .stTextInput > div > div > input:focus {{
                 border-color: #5D5FEF !important;
                 box-shadow: 0 0 0 3px rgba(93, 95, 239, 0.1) !important;
-            }
+            }}
         </style>
-        "".format(ext=ext, bin_str=bin_str)
-        st.markdown(page_bg_img, unsafe_allow_html=True)
-
-    @staticmethod
-    def set_bg_image(image_path):
-        """Arka plan resmini ayarlar."""
-        bin_str = get_base64_image(image_path)
-        if not bin_str:
-            return
-
-        ext = os.path.splitext(image_path)[1].lower().replace(".", "")
-        if ext == "jpg": ext = "jpeg"
-        
-        page_bg_img = f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        
-        html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
-        }
-
-        .stApp {
-            background-image: url("data:image/{ext};base64,{bin_str}") !important;
-            background-size: cover !important;
-            background-position: center center !important;
-            background-repeat: no-repeat !important;
-            background-attachment: fixed !important;
-        }
-        
-        /* Glassmorphism Container for Main App */
-        .block-container {
-            background-color: rgba(255, 255, 255, 0.95);
-            padding: 2rem;
-            border-radius: 16px;
-            margin-top: 2rem;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            max-width: 95% !important;
-        }}
-        </style>
-        "".format(ext=ext, bin_str=bin_str)
+        """
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
     @staticmethod
@@ -228,7 +189,7 @@ class UI:
                 background-position: center center !important;
                 background-repeat: no-repeat !important;
                 background-attachment: fixed !important;
-            """.format(bg_data=bg_data)
+            """
         else:
             bg_css = "background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;"
 
