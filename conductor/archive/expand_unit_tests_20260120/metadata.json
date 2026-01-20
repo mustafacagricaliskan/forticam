@@ -1,0 +1,8 @@
+{
+  "track_id": "expand_unit_tests_20260120",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-01-20T20:17:00Z",
+  "updated_at": "2026-01-20T20:17:00Z",
+  "description": "Increase unit test coverage for core services including AuthService, ConfigService, and FortiManagerAPI."
+}
