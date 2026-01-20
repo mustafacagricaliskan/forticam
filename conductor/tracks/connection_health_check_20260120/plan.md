@@ -1,11 +1,11 @@
 # Implementation Plan - Connection Health Check
 
 ## Phase 1: Connectivity Logic
-- [ ] Task: Implement connectivity check functions
-    - [ ] Write unit tests for FortiManager connectivity check (mocking responses)
-    - [ ] Implement `check_fmg_connectivity` in `src/system_service.py`
-    - [ ] Write unit tests for LDAP connectivity check (mocking responses)
-    - [ ] Implement `check_ldap_connectivity` in `src/auth_service.py`
+- [x] Task: Implement connectivity check functions
+    - [x] Write unit tests for FortiManager connectivity check (mocking responses) 5cec0f1
+    - [x] Implement `check_fmg_connectivity` in `src/system_service.py` 5cec0f1
+    - [x] Write unit tests for LDAP connectivity check (mocking responses) 4c9075a
+    - [x] Implement `check_ldap_connectivity` in `src/auth_service.py` 4c9075a
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Connectivity Logic' (Protocol in workflow.md)
 
 ## Phase 2: UI Integration
