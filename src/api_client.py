@@ -410,16 +410,32 @@ class FortiManagerAPI:
         if not adom: adom = "root"
         
         # 1. Script Oluştur
+        # Path Düzeltmesi: /pm/config/adom/... yerine /dvmdb/adom/... deneniyor
+        # FMG versiyonuna gore degisebilir.
+        
+        # Deneme 1: DVMDB Script (Genel)
+        create_url = f"/dvmdb/adom/{adom}/script"
+        
         create_data = {
             "name": script_name,
             "type": "cli",
             "content": script_content,
-            "target": "device_database" # Veya 'remote_device'
+            "target": "remote_device" # Direkt cihaza uygula
         }
-        create_url = f"/pm/config/adom/{adom}/obj/cli/script"
         
-        print(f"DEBUG: Creating Script {script_name}...")
+        print(f"DEBUG: Creating Script {script_name} at {create_url}...")
         res_create = self._post("add", [{"url": create_url, "data": create_data}])
+        
+        # Eger ilk yol basarisiz olursa, alternatif yol (PM Config) dene
+        if not (res_create and 'result' in res_create and res_create['result'][0]['status']['code'] == 0):
+            print(f"DEBUG: First path failed ({json.dumps(res_create)}). Trying fallback path...")
+            # Fallback: PM Config Path
+            fallback_url = f"/pm/config/adom/{adom}/obj/cli/script"
+            # Target PM'de farkli olabilir
+            create_data["target"] = "device_database" 
+            
+            res_create = self._post("add", [{"url": fallback_url, "data": create_data}])
+            create_url = fallback_url # Silme islemi icin guncelle
         
         if not (res_create and 'result' in res_create and res_create['result'][0]['status']['code'] == 0):
             return False, f"Script Creation Failed: {json.dumps(res_create)}"
