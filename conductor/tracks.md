@@ -2,14 +2,10 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-## Active Tracks
+## Archived Tracks
 
 - [x] **Track: Implement script-based interface toggling as an alternative to DB update for better reliability on management ports.**
-  *Link: [./tracks/script_based_toggle_20260120/](./tracks/script_based_toggle_20260120/)*
-
----
-
-## Archived Tracks
+  *Link: [./archive/script_based_toggle_20260120/](./archive/script_based_toggle_20260120/)*
 
 - [x] **Track: Improve the homepage GUI with wide layout, redesigned device cards using glassmorphism, and enhanced status indicators.**
   *Link: [./archive/homepage_gui_improvement_20260120/](./archive/homepage_gui_improvement_20260120/)*
