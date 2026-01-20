@@ -1,0 +1,8 @@
+{
+  "track_id": "direct_proxy_exec_20260120",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-20T17:41:00Z",
+  "updated_at": "2026-01-20T17:41:00Z",
+  "description": "Implement direct device command execution via FortiManager Proxy to bypass script creation issues."
+}

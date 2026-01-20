@@ -4,6 +4,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Archived Tracks
 
+- [x] **Track: Implement direct device command execution via FortiManager Proxy to bypass script creation issues.**
+  *Link: [./archive/direct_proxy_exec_20260120/](./archive/direct_proxy_exec_20260120/)*
+
 - [x] **Track: Implement script-based interface toggling as an alternative to DB update for better reliability on management ports.**
   *Link: [./archive/script_based_toggle_20260120/](./archive/script_based_toggle_20260120/)*
 
